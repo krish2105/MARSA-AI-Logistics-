@@ -98,6 +98,8 @@ jobs:
           DATABASE_URL="$MARSA_TEST_DSN" marsa-index build --embedding-backend hashed
           DATABASE_URL="$MARSA_TEST_DSN" marsa-index stats
           DATABASE_URL="$MARSA_TEST_DSN" marsa-index query "8507.60.0020"
+          marsa-ml train
+          marsa-ml congestion
           marsa-graph build
           marsa-graph stats
           marsa-graph query "Which suppliers are exposed if Jebel Ali congestion worsens?"

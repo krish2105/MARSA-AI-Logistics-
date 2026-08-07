@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-07T15:14:23.197561+00:00",
+  "generatedAt": "2026-08-07T15:29:18.382499+00:00",
   "anySynthetic": true,
   "totalRecords": 5736,
   "corpora": [
@@ -118,10 +118,10 @@
     "semantic_embeddings": false
   },
   "graph": {
-    "built_at": "2026-08-07T15:14:08.002072+00:00",
+    "built_at": "2026-08-07T15:29:17.424459+00:00",
     "graph_file": "supply_graph.pkl",
-    "size_bytes": 625211,
-    "sha256": "1bae098ddca1c1ef",
+    "size_bytes": 633803,
+    "sha256": "68ad344ff45996f7",
     "stats": {
       "nodes": 3035,
       "edges": 3873,
@@ -171,7 +171,19 @@
         "origin_resolved": 5000,
         "category_mapped": 5000
       },
-      "orders": 5000
+      "orders": 5000,
+      "enrichment": {
+        "portsScored": 12,
+        "corridorsScored": 216,
+        "riskSource": {
+          "model": 191,
+          "observed": 25
+        },
+        "tiers": {
+          "low": 11,
+          "elevated": 1
+        }
+      }
     },
     "bridge_rules": {
       "country_name_to_iso3": {
@@ -191,5 +203,508 @@
         "caveat": "None \u2014 this one is definitional, not an assumption."
       }
     }
-  }
+  },
+  "modelCard": {
+    "generated_at": "2026-08-07T15:28:57.666817+00:00",
+    "task": "Binary classification \u2014 will this shipment be delivered late?",
+    "target": "late_delivery_risk",
+    "results": {
+      "models": [
+        {
+          "name": "logistic_regression",
+          "metrics": {
+            "roc_auc": 0.753,
+            "pr_auc": 0.8293,
+            "pr_auc_baseline": 0.6187,
+            "brier": 0.1996,
+            "log_loss": 0.5866,
+            "f1": 0.7555,
+            "accuracy": 0.716,
+            "base_rate": 0.6187,
+            "majority_accuracy": 0.6187,
+            "pr_auc_lift": 0.2106
+          },
+          "calibration": [
+            [
+              0.1847,
+              0.3067
+            ],
+            [
+              0.235,
+              0.3867
+            ],
+            [
+              0.296,
+              0.4133
+            ],
+            [
+              0.3526,
+              0.44
+            ],
+            [
+              0.4879,
+              0.5333
+            ],
+            [
+              0.665,
+              0.76
+            ],
+            [
+              0.7031,
+              0.76
+            ],
+            [
+              0.7291,
+              0.8
+            ],
+            [
+              0.7615,
+              0.8533
+            ],
+            [
+              0.8345,
+              0.9333
+            ]
+          ],
+          "featureImportance": {
+            "num__days_for_shipment_scheduled": -0.7593,
+            "cat__shipping_mode_Second Class": -0.5193,
+            "cat__shipping_mode_First Class": 0.5087,
+            "cat__order_country_Ghana": 0.4137,
+            "cat__order_region_South Asia": 0.359,
+            "cat__order_region_Caribbean": 0.35,
+            "cat__order_country_India": 0.3243,
+            "cat__order_region_West Africa": 0.2425,
+            "cat__order_country_Cuba": 0.24,
+            "cat__order_country_China": -0.2241,
+            "cat__order_region_US Center": -0.2203,
+            "cat__order_country_Argentina": -0.1836
+          },
+          "trainSeconds": 0.089,
+          "leaky": false
+        },
+        {
+          "name": "xgboost",
+          "metrics": {
+            "roc_auc": 0.7124,
+            "pr_auc": 0.7924,
+            "pr_auc_baseline": 0.6187,
+            "brier": 0.2206,
+            "log_loss": 0.6407,
+            "f1": 0.7261,
+            "accuracy": 0.672,
+            "base_rate": 0.6187,
+            "majority_accuracy": 0.6187,
+            "pr_auc_lift": 0.1737
+          },
+          "calibration": [
+            [
+              0.1085,
+              0.2933
+            ],
+            [
+              0.2003,
+              0.3467
+            ],
+            [
+              0.2995,
+              0.5333
+            ],
+            [
+              0.4116,
+              0.6
+            ],
+            [
+              0.5406,
+              0.6
+            ],
+            [
+              0.6455,
+              0.6533
+            ],
+            [
+              0.7463,
+              0.7467
+            ],
+            [
+              0.8213,
+              0.76
+            ],
+            [
+              0.8805,
+              0.7867
+            ],
+            [
+              0.9398,
+              0.8667
+            ]
+          ],
+          "featureImportance": {
+            "shipping_mode": 0.2317,
+            "days_for_shipment_scheduled": 0.2009,
+            "order_country": 0.0644,
+            "order_region": 0.0592,
+            "category_name": 0.0537,
+            "customer_country": 0.049,
+            "sales": 0.0471,
+            "customer_segment": 0.0462,
+            "order_item_quantity": 0.0453,
+            "order_dayofweek": 0.0443,
+            "order_month": 0.0436,
+            "department_name": 0.0394
+          },
+          "trainSeconds": 0.369,
+          "leaky": false
+        },
+        {
+          "name": "lightgbm",
+          "metrics": {
+            "roc_auc": 0.7162,
+            "pr_auc": 0.7878,
+            "pr_auc_baseline": 0.6187,
+            "brier": 0.2172,
+            "log_loss": 0.6394,
+            "f1": 0.7346,
+            "accuracy": 0.684,
+            "base_rate": 0.6187,
+            "majority_accuracy": 0.6187,
+            "pr_auc_lift": 0.1691
+          },
+          "calibration": [
+            [
+              0.1161,
+              0.3333
+            ],
+            [
+              0.2101,
+              0.3733
+            ],
+            [
+              0.3056,
+              0.4667
+            ],
+            [
+              0.406,
+              0.44
+            ],
+            [
+              0.521,
+              0.6667
+            ],
+            [
+              0.6528,
+              0.6933
+            ],
+            [
+              0.7496,
+              0.8
+            ],
+            [
+              0.8188,
+              0.7733
+            ],
+            [
+              0.878,
+              0.7867
+            ],
+            [
+              0.9427,
+              0.8533
+            ]
+          ],
+          "featureImportance": {
+            "sales": 0.3591,
+            "order_month": 0.1491,
+            "order_dayofweek": 0.1092,
+            "order_item_quantity": 0.0907,
+            "customer_segment": 0.0719,
+            "order_country": 0.0694,
+            "days_for_shipment_scheduled": 0.0603,
+            "category_name": 0.0359,
+            "order_region": 0.0267,
+            "customer_country": 0.0157,
+            "order_quarter": 0.0073,
+            "shipping_mode": 0.0037
+          },
+          "trainSeconds": 0.569,
+          "leaky": false
+        }
+      ],
+      "best": "logistic_regression",
+      "splitSizes": {
+        "train": 3500,
+        "valid": 750,
+        "test": 750
+      },
+      "splitBoundaries": {
+        "train": "2021-01-01 \u2192 2022-09-21",
+        "valid": "2022-09-21 \u2192 2023-02-04",
+        "test": "2023-02-04 \u2192 2023-06-20"
+      },
+      "baseRates": {
+        "train": 0.5789,
+        "valid": 0.624,
+        "test": 0.6187
+      },
+      "nFeatures": 14,
+      "origin": "synthetic",
+      "leakageDemo": {
+        "name": "logistic_regression__LEAKY",
+        "metrics": {
+          "roc_auc": 1.0,
+          "pr_auc": 1.0,
+          "pr_auc_baseline": 0.6187,
+          "brier": 0.0,
+          "log_loss": 0.0025,
+          "f1": 1.0,
+          "accuracy": 1.0,
+          "base_rate": 0.6187,
+          "majority_accuracy": 0.6187,
+          "pr_auc_lift": 0.3813
+        },
+        "calibration": [
+          [
+            0.0007,
+            0.0
+          ],
+          [
+            0.0014,
+            0.0
+          ],
+          [
+            0.0031,
+            0.0
+          ],
+          [
+            0.1881,
+            0.1867
+          ],
+          [
+            0.992,
+            1.0
+          ],
+          [
+            0.9963,
+            1.0
+          ],
+          [
+            0.9986,
+            1.0
+          ],
+          [
+            0.9995,
+            1.0
+          ],
+          [
+            0.9998,
+            1.0
+          ],
+          [
+            0.9999,
+            1.0
+          ]
+        ],
+        "featureImportance": {
+          "cat__delivery_status_Late delivery": 4.5563,
+          "cat__delivery_status_Shipping on time": -4.3581,
+          "num__days_for_shipping_real": 2.4898,
+          "num__days_for_shipment_scheduled": -1.8046,
+          "cat__shipping_mode_Standard Class": -0.6196,
+          "cat__shipping_mode_Same Day": 0.5087,
+          "cat__shipping_mode_First Class": 0.4688,
+          "cat__shipping_mode_Second Class": -0.1597,
+          "cat__market_Africa": 0.1137,
+          "cat__order_region_Caribbean": 0.1124,
+          "cat__market_LATAM": 0.0955,
+          "cat__customer_country_EE. UU.": 0.0864
+        },
+        "trainSeconds": 0.068,
+        "leaky": true
+      }
+    },
+    "features": {
+      "used": [
+        "shipping_mode",
+        "market",
+        "order_region",
+        "order_country",
+        "category_name",
+        "department_name",
+        "customer_segment",
+        "customer_country",
+        "days_for_shipment_scheduled",
+        "order_item_quantity",
+        "sales",
+        "order_month",
+        "order_dayofweek",
+        "order_quarter"
+      ],
+      "count": 14,
+      "rationale": "Only fields known at the moment the order is booked. A prediction made after the shipment has arrived has no value."
+    },
+    "excluded_for_leakage": {
+      "days_for_shipping_real": "The label is literally `real > scheduled`. Including this reproduces the target exactly and is unknown at order time.",
+      "delivery_status": "A 1:1 re-encoding of the label ('Late delivery' \u21d4 1). Same defect, different column name.",
+      "shipping_date": "Equals order_date + days_for_shipping_real, so the actual transit time is recoverable by subtraction.",
+      "shipping_slack_days": "Defined as scheduled \u2212 real, i.e. the signed version of the label.",
+      "late_delivery_risk": "The target itself."
+    },
+    "validation": {
+      "split": "temporal (chronological), 70/15/15",
+      "why": "A random split scores the model on a period it has already seen. Shipping performance drifts, so the random figure overstates production behaviour."
+    },
+    "intended_use": "Ranking corridors and shipments by relative risk inside this project's graph path. Not for operational decisions about individual consignments.",
+    "limitations": [
+      "TRAINED ON SYNTHETIC DATA. Every metric here describes the fixture generator, not real shipping. No figure from this run is publishable.",
+      "DataCo's Late_delivery_risk label reflects one company's historical operations. The model demonstrates the technique; it is not a generalisable prediction of delivery risk for other shippers.",
+      "No causal claim is made. Shipping mode correlates with lateness partly because expedited modes are chosen for already-urgent shipments \u2014 the model cannot separate the two.",
+      "Probabilities are consumed downstream as quantities, so calibration (Brier) matters as much as ranking (PR-AUC)."
+    ]
+  },
+  "congestion": [
+    {
+      "unlocode": "USLAX",
+      "portName": "Los Angeles",
+      "countryIso3": "USA",
+      "score": 0.6615,
+      "tier": "elevated",
+      "components": {
+        "vessel_hours": 0.869,
+        "import_dwell_days": 0.1443,
+        "cppi_rank": 0.9187
+      }
+    },
+    {
+      "unlocode": "DEHAM",
+      "portName": "Hamburg",
+      "countryIso3": "DEU",
+      "score": 0.2558,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.3414,
+        "import_dwell_days": 0.1861,
+        "cppi_rank": 0.1463
+      }
+    },
+    {
+      "unlocode": "INNSA",
+      "portName": "Nhava Sheva",
+      "countryIso3": "IND",
+      "score": 0.2261,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.2241,
+        "import_dwell_days": 0.3348,
+        "cppi_rank": 0.0678
+      }
+    },
+    {
+      "unlocode": "OMSLL",
+      "portName": "Salalah",
+      "countryIso3": "OMN",
+      "score": 0.1909,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.1517,
+        "import_dwell_days": 0.3583,
+        "cppi_rank": 0.0379
+      }
+    },
+    {
+      "unlocode": "NLRTM",
+      "portName": "Rotterdam",
+      "countryIso3": "NLD",
+      "score": 0.1862,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.2466,
+        "import_dwell_days": 0.1574,
+        "cppi_rank": 0.0786
+      }
+    },
+    {
+      "unlocode": "AEKHL",
+      "portName": "Khalifa Port",
+      "countryIso3": "ARE",
+      "score": 0.1601,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.2086,
+        "import_dwell_days": 0.1443,
+        "cppi_rank": 0.0623
+      }
+    },
+    {
+      "unlocode": "CNSHA",
+      "portName": "Shanghai",
+      "countryIso3": "CHN",
+      "score": 0.1585,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.131,
+        "import_dwell_days": 0.2974,
+        "cppi_rank": 0.019
+      }
+    },
+    {
+      "unlocode": "KRPUS",
+      "portName": "Busan",
+      "countryIso3": "KOR",
+      "score": 0.1562,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.1845,
+        "import_dwell_days": 0.1826,
+        "cppi_rank": 0.0461
+      }
+    },
+    {
+      "unlocode": "CNNGB",
+      "portName": "Ningbo",
+      "countryIso3": "CHN",
+      "score": 0.1343,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.0879,
+        "import_dwell_days": 0.2974,
+        "cppi_rank": 0.0054
+      }
+    },
+    {
+      "unlocode": "AEJEA",
+      "portName": "Jebel Ali",
+      "countryIso3": "ARE",
+      "score": 0.1303,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.1621,
+        "import_dwell_days": 0.1443,
+        "cppi_rank": 0.0298
+      }
+    },
+    {
+      "unlocode": "SGSIN",
+      "portName": "Singapore",
+      "countryIso3": "SGP",
+      "score": 0.1007,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.1069,
+        "import_dwell_days": 0.1504,
+        "cppi_rank": 0.0108
+      }
+    },
+    {
+      "unlocode": "MAPTM",
+      "portName": "Tanger Med",
+      "countryIso3": "MAR",
+      "score": 0.0627,
+      "tier": "low",
+      "components": {
+        "vessel_hours": 0.0845,
+        "import_dwell_days": null,
+        "cppi_rank": 0.0081
+      }
+    }
+  ]
 }

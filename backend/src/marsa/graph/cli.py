@@ -83,6 +83,12 @@ def build(
     graph, report = build_graph(
         rulings=rulings, flows=flows, orders=orders, countries=countries, ports=ports
     )
+
+    # Phase D enrichment, when its artefacts exist. Optional by design: the
+    # graph must remain buildable before any model has been trained, so a
+    # missing model degrades to the observed late rates rather than failing.
+    report["enrichment"] = _enrich(graph, orders)
+
     origin = dominant_origin(rulings, flows, orders, countries, ports)
     stats = compute_stats(graph, origin=origin)
 
@@ -111,6 +117,33 @@ def build(
             "\n[yellow]⚠ Built from synthetic corpora.[/] Structure is exercised; "
             "no finding from it describes real trade."
         )
+
+
+def _enrich(graph, orders: list) -> dict:
+    """Fold Phase D congestion scores and predicted corridor risk into the graph."""
+    from marsa.ml.artifacts import load_congestion, load_model
+    from marsa.ml.enrich import enrich_corridors, enrich_ports, enrichment_summary
+
+    congestion = load_congestion(settings.data_dir)
+    if congestion:
+        enrich_ports(graph, congestion)
+        console.print(f"[dim]  enriched {len(congestion)} ports with congestion tiers[/]")
+    else:
+        console.print("[dim]  no congestion scores — run `marsa-ml congestion`[/]")
+
+    try:
+        _name, model = load_model(settings.data_dir)
+    except FileNotFoundError:
+        console.print("[dim]  no risk model — run `marsa-ml train`[/]")
+        return enrichment_summary(graph)
+
+    if orders:
+        from marsa.ml.train import predict_corridor_risk
+
+        updated = enrich_corridors(graph, predict_corridor_risk(model, orders))
+        console.print(f"[dim]  enriched {updated} corridors with predicted risk[/]")
+
+    return enrichment_summary(graph)
 
 
 @app.command()

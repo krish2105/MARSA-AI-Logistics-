@@ -18,6 +18,9 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "psycopg[binary]>=3.1",
     "networkx>=3.3",
+    "scikit-learn>=1.5",
+    "xgboost>=2.1",
+    "lightgbm>=4.5",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +40,7 @@ dev = [
 marsa-ingest = "marsa.ingestion.cli:app"
 marsa-index = "marsa.indexing.cli:app"
 marsa-graph = "marsa.graph.cli:app"
+marsa-ml = "marsa.ml.cli:app"
 
 [build-system]
 requires = ["setuptools>=68"]

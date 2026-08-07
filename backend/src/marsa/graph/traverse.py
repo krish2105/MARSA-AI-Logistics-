@@ -139,8 +139,27 @@ def k_hop_subgraph(
 
     result.subgraph = sub
     result.distances = distances
-    result.exposure = propagate_risk(sub, present, distances)
+    # Severity is per-seed when Phase D has scored the node: a congested port is
+    # a stronger shock than a well-run one, so seeding on Los Angeles and on
+    # Singapore should not produce identically-shaped answers.
+    result.exposure = propagate_risk(
+        sub, present, distances, seed_severity=_seed_severity(sub, present)
+    )
     return result
+
+
+def _seed_severity(graph: nx.MultiDiGraph, seeds: list[str]) -> float:
+    """Strongest congestion score among the seeds, or 1.0 if unscored."""
+    scores = [
+        graph.nodes[s].get("congestion_score")
+        for s in seeds
+        if graph.has_node(s) and graph.nodes[s].get("congestion_score") is not None
+    ]
+    if not scores:
+        return 1.0
+    # Floor at 0.35: "what if this gets worse" presupposes a disruption even
+    # where today's score is low.
+    return max(0.35, min(1.0, 0.35 + 0.65 * float(max(scores))))
 
 
 def _incident(graph: nx.MultiDiGraph, node: str):
@@ -207,7 +226,12 @@ def _edge_strength(data: dict[str, Any]) -> float:
         strength = float(data.get("weight", 0.5))
     elif kind in (EdgeKind.SHIPS_FROM.value, EdgeKind.SHIPS_TO.value):
         # A corridor that already fails often conducts disruption more readily.
-        late = float(data.get("late_rate", 0.0) or 0.0)
+        # `effective_late_rate` is written by the Phase D enrichment and prefers
+        # the model's prediction on sparse corridors, where the observed rate is
+        # a coin flip. Falls back to the observed rate when unenriched.
+        late = float(
+            data.get("effective_late_rate", data.get("late_rate", 0.0)) or 0.0
+        )
         strength = 0.55 + 0.45 * late
     else:
         strength = 0.85

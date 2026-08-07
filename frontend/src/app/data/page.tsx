@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2, Database, Layers, Network } from "lucide-react";
+import {
+  AlertTriangle,
+  Anchor,
+  Ban,
+  CheckCircle2,
+  Database,
+  Layers,
+  Network,
+} from "lucide-react";
 
 import report from "@/data/ingestion-report.json";
 import { cn } from "@/lib/utils";
@@ -21,6 +29,8 @@ export default function DataPage() {
   const { corpora, anySynthetic, totalRecords, generatedAt } = report;
   const index = report.index as IndexManifest | null;
   const graph = report.graph as GraphManifest | null;
+  const modelCard = report.modelCard as ModelCard | null;
+  const congestion = (report.congestion ?? []) as PortCongestion[];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -146,6 +156,7 @@ export default function DataPage() {
 
       {index && <IndexSection index={index} />}
       {graph && <GraphSection graph={graph} />}
+      {modelCard && <ModelSection card={modelCard} congestion={congestion} />}
 
       <p className="mt-10 text-sm leading-relaxed text-muted-foreground">
         Regenerate with{" "}
@@ -424,6 +435,265 @@ function GraphSection({ graph }: { graph: GraphManifest }) {
             </div>
           ))}
         </dl>
+      </div>
+    </section>
+  );
+}
+
+interface ModelResultJson {
+  name: string;
+  metrics: Record<string, number>;
+  trainSeconds: number;
+  leaky: boolean;
+}
+
+interface ModelCard {
+  task: string;
+  target: string;
+  results: {
+    models: ModelResultJson[];
+    best: string | null;
+    splitSizes: Record<string, number>;
+    splitBoundaries: Record<string, string>;
+    baseRates: Record<string, number>;
+    origin: string;
+    leakageDemo: ModelResultJson | null;
+  };
+  features: { used: string[]; count: number };
+  excluded_for_leakage: Record<string, string>;
+  validation: { split: string; why: string };
+  limitations: string[];
+}
+
+interface PortCongestion {
+  unlocode: string;
+  portName: string;
+  score: number;
+  tier: string;
+}
+
+const TIER_CLASS: Record<string, string> = {
+  high: "bg-risk-high-muted text-risk-high",
+  elevated: "bg-risk-medium-muted text-risk-medium",
+  moderate: "bg-route-fast-muted text-route-fast",
+  low: "bg-risk-low-muted text-risk-low",
+};
+
+function ModelSection({
+  card,
+  congestion,
+}: {
+  card: ModelCard;
+  congestion: PortCongestion[];
+}) {
+  const { models, best, leakageDemo, baseRates, splitBoundaries } = card.results;
+  const honest = models.filter((m) => !m.leaky);
+  const bestModel = honest.find((m) => m.name === best);
+  const testBaseRate = baseRates.test ?? 0;
+
+  return (
+    <section className="mt-14" aria-labelledby="model-heading">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Anchor className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <h2
+          id="model-heading"
+          className="font-semibold tracking-tight"
+          style={{ fontSize: "var(--text-step-2)" }}
+        >
+          Phase D — risk models
+        </h2>
+        <span
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+            card.results.origin === "synthetic"
+              ? "bg-risk-medium-muted text-risk-medium"
+              : "bg-risk-low-muted text-risk-low",
+          )}
+        >
+          {card.results.origin === "synthetic" ? (
+            <AlertTriangle className="size-3.5" aria-hidden />
+          ) : (
+            <CheckCircle2 className="size-3.5" aria-hidden />
+          )}
+          {card.results.origin === "synthetic" ? "SYNTHETIC" : "live"}
+        </span>
+      </div>
+
+      <p className="mb-6 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        {card.task} Validated on a <strong>{card.validation.split}</strong> —{" "}
+        {card.validation.why}
+      </p>
+
+      {/* Comparison */}
+      <div className="mb-4 overflow-x-auto rounded-2xl border border-border bg-card">
+        <table className="w-full min-w-[36rem] text-sm">
+          <caption className="sr-only">Model comparison on the held-out test slice</caption>
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <th scope="col" className="px-4 py-3 font-medium">Model</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">PR-AUC</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Lift</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">ROC-AUC</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Brier</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium">Train</th>
+            </tr>
+          </thead>
+          <tbody className="tabular divide-y divide-border/70">
+            {[...honest]
+              .sort((a, b) => b.metrics.pr_auc - a.metrics.pr_auc)
+              .map((m) => (
+                <tr key={m.name} className={m.name === best ? "bg-muted/40" : undefined}>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {m.name}
+                    {m.name === best && (
+                      <span className="ml-2 rounded bg-risk-low-muted px-1.5 py-0.5 text-[0.65rem] font-medium text-risk-low">
+                        best
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium">
+                    {m.metrics.pr_auc.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    +{m.metrics.pr_auc_lift.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {m.metrics.roc_auc.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {m.metrics.brier.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {m.trainSeconds.toFixed(2)}s
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="tabular mb-6 text-xs text-muted-foreground">
+        No-skill PR-AUC baseline = test base rate ={" "}
+        <strong className="text-foreground">{testBaseRate.toFixed(4)}</strong>. Test
+        slice spans {splitBoundaries.test}.
+        {bestModel && honest.length > 1 && (
+          <>
+            {" "}
+            Logistic regression leads the boosted models here — on tabular data with a
+            strong main effect, that happens, and reporting it beats assuming otherwise.
+          </>
+        )}
+      </p>
+
+      {/* The leakage trap */}
+      {leakageDemo && bestModel && (
+        <div
+          role="alert"
+          className="mb-6 flex gap-3 rounded-xl border border-risk-high/40 bg-risk-high-muted p-4"
+        >
+          <Ban className="mt-0.5 size-5 shrink-0 text-risk-high" aria-hidden />
+          <div className="space-y-1.5">
+            <p className="font-semibold text-risk-high">
+              The leakage trap, quantified
+            </p>
+            <p className="text-sm leading-relaxed text-foreground/80">
+              Given <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-xs">days_for_shipping_real</code>{" "}
+              and <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-xs">delivery_status</code>,
+              the same model scores{" "}
+              <strong className="tabular">
+                {leakageDemo.metrics.roc_auc.toFixed(4)}
+              </strong>{" "}
+              ROC-AUC against{" "}
+              <strong className="tabular">
+                {bestModel.metrics.roc_auc.toFixed(4)}
+              </strong>{" "}
+              honestly — a{" "}
+              <strong className="tabular">
+                +{(leakageDemo.metrics.roc_auc - bestModel.metrics.roc_auc).toFixed(4)}
+              </strong>{" "}
+              illusion. The label is <em>defined</em> as{" "}
+              <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-xs">
+                real &gt; scheduled
+              </code>
+              , so those columns restate the answer — and neither is known when the
+              order is booked, which is the only moment a prediction has value.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Excluded features */}
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold">Excluded for leakage</h3>
+          <dl className="mt-4 space-y-3">
+            {Object.entries(card.excluded_for_leakage).map(([column, reason]) => (
+              <div key={column}>
+                <dt className="flex items-center gap-2">
+                  <Ban className="size-3.5 shrink-0 text-risk-high" aria-hidden />
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                    {column}
+                  </code>
+                </dt>
+                <dd className="mt-1 pl-5 text-xs leading-relaxed text-muted-foreground">
+                  {reason}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-4 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+            {card.features.count} features survive — everything known at booking.
+          </p>
+        </div>
+
+        {/* Port congestion */}
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold">Port congestion tiers</h3>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Rule-based composite of vessel hours, import dwell and CPPI rank. Not
+            learned: there is no congestion label, and CPPI rank is an output of the
+            same measurements.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {congestion.slice(0, 8).map((port) => (
+              <li key={port.unlocode} className="flex items-center gap-3 text-sm">
+                <span className="truncate">{port.portName}</span>
+                <code className="shrink-0 font-mono text-xs text-muted-foreground">
+                  {port.unlocode}
+                </code>
+                <span
+                  className={cn(
+                    "tabular ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs font-medium",
+                    TIER_CLASS[port.tier] ?? "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {port.score.toFixed(3)} · {port.tier}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Limitations */}
+      <div className="mt-4 rounded-2xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold">Limitations</h3>
+        <ul className="mt-3 space-y-2">
+          {card.limitations.map((item) => (
+            <li
+              key={item}
+              className={cn(
+                "flex gap-2.5 text-sm leading-relaxed",
+                item.startsWith("TRAINED ON SYNTHETIC")
+                  ? "text-risk-medium"
+                  : "text-muted-foreground",
+              )}
+            >
+              <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-current" />
+              {item}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

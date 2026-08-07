@@ -41,6 +41,8 @@ data/.http-cache/
 data/index/
 # Built by `marsa-graph build` — pickle + manifest, reproducible from corpora.
 data/graph/
+# Built by `marsa-ml train` / `congestion` — model pickle, card, port scores.
+data/models/
 data/*.pkl
 artifacts/
 *.joblib

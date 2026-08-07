@@ -42,7 +42,7 @@ decision is auditable in the interface, not buried in a log.
 | **A** | Data ingestion — CROSS, Comtrade, DataCo, World Bank LPI | ✅ **Shipped** (see caveat) |
 | **B** | Fast-path index — chunking, pgvector, BM25, reranker | ✅ **Shipped** (see caveat) |
 | **C** | Graph construction — NetworkX supplier/port/country graph | ✅ **Shipped** |
-| D | ML layer — late-delivery risk, port-congestion tiering | ⬜ Planned |
+| **D** | ML layer — late-delivery risk, port-congestion tiering | ✅ **Shipped** |
 | E | LangGraph router + FastAPI gateway + SSE streaming | ⬜ Planned |
 | F | Evaluation harness → `RESULTS.md` | ⬜ Planned |
 
@@ -335,6 +335,76 @@ recorded facts. …
 
 ---
 
+## Phase D: risk models
+
+### The leakage trap, quantified
+
+DataCo's label is *defined* as `days_for_shipping_real > days_for_shipment_scheduled`.
+Verified on this corpus: that expression reproduces the label in **5,000 of
+5,000 rows**. `Delivery Status` is a 1:1 re-encoding of the same thing.
+
+So a model given those columns isn't predicting — it's restating the answer.
+This is the most common error in published work on this dataset, so the
+blocklist is enforced in code, asserted by a test, and **demonstrated**:
+
+| | ROC-AUC |
+|---|---|
+| Honest features (order-time only) | **0.7530** |
+| Same model + `days_for_shipping_real`, `delivery_status` | **1.0000** |
+| The illusion | **+0.2470** |
+
+Neither leaky column is knowable when the order is booked — which is the only
+moment a prediction has any value.
+
+### The comparison
+
+Temporal split (70/15/15), scored on the held-out latest slice:
+
+| Model | PR-AUC | Lift | ROC-AUC | Brier | Train |
+|---|---|---|---|---|---|
+| **logistic_regression** | **0.8293** | +0.2106 | 0.7530 | 0.1996 | 0.09s |
+| xgboost | 0.7924 | +0.1737 | 0.7124 | 0.2206 | 0.37s |
+| lightgbm | 0.7878 | +0.1691 | 0.7162 | 0.2172 | 0.57s |
+
+No-skill PR-AUC baseline = test base rate = 0.6187.
+
+**Logistic regression wins.** On tabular data with a handful of low-cardinality
+categoricals and a strong main effect (shipping mode), a regularised linear
+model is frequently competitive with gradient boosting — and it trains 4–6×
+faster, calibrates better (lowest Brier), and is interpretable. Reporting that
+is more useful than assuming the boosted model must be better.
+
+The split is **temporal, not random**: a random split scores the model on a
+period it has already seen, and shipping performance drifts.
+
+PR-AUC is the headline over ROC-AUC because the positive class is the one
+anyone cares about, and the no-skill baseline is reported beside it — a PR-AUC
+of 0.83 means nothing until you know the base rate was 0.62.
+
+### Port congestion — rule-based on purpose
+
+There is no congestion *label* to train against, and CPPI rank is an output of
+the same measurements, so regressing on it would be circular. Instead: a
+transparent composite of vessel hours (0.50), import dwell days (0.30) and CPPI
+rank (0.20), each normalised against the **real** CPPI range.
+
+Missing signals are dropped and the weights rescaled, never imputed as zero —
+treating an absent measurement as "no congestion" would systematically flatter
+ports with poor reporting, which are exactly the ports most likely to have a
+problem.
+
+### Both models feed the graph (spec item 12)
+
+- **Congestion becomes seed severity.** Before this, every port injected a flat
+  1.0, so "if Jebel Ali congests" and "if Los Angeles congests" produced
+  identically-shaped answers. Now Jebel Ali (0.130) and LA (0.662) don't.
+- **Predicted risk replaces observed rates on sparse corridors.** An observed
+  late rate over three shipments is 0.0 or 1.0 and neither means anything; the
+  model borrows strength from mode, region and category. The observed rate stays
+  on the edge next to the prediction, and `risk_source` records which won.
+
+---
+
 ## Running it
 
 ### Frontend
@@ -352,7 +422,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                     # 193 tests; pgvector tests skip without a DSN
+pytest                     # 240 tests; pgvector tests skip without a DSN
 ruff check src tests
 
 marsa-ingest fixtures      # synthetic corpora, no network
@@ -369,6 +439,11 @@ marsa-graph build          # assemble from every corpus
 marsa-graph query "Which suppliers are exposed if Jebel Ali congestion worsens?"
 marsa-graph stats          # composition, connectivity, inferred share
 marsa-graph node port:AEJEA
+
+# Phase D — risk models
+marsa-ml train             # LogReg vs XGBoost vs LightGBM, temporal split
+marsa-ml congestion        # port congestion tiers from LPI + CPPI
+marsa-ml card              # model card: features, exclusions, limitations
 
 # Run the pgvector integration tests against a real database:
 #   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=marsa \
@@ -404,7 +479,8 @@ No backend is required for Phase 1.
 next-themes · Motion v13 · lucide-react
 
 **Backend** — Python 3.11 · Pydantic v2 · httpx + tenacity · pandas ·
-pgvector · rank-bm25 · numpy · networkx · typer. Optional `[ml]` extra adds
+pgvector · rank-bm25 · numpy · networkx · scikit-learn · XGBoost ·
+LightGBM · typer. Optional `[ml]` extra adds
 sentence-transformers for MiniLM and the cross-encoder.
 
 FastAPI + LangGraph land in Phase E — see `backend/README.md`.

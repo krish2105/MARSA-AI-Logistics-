@@ -398,6 +398,16 @@ def export_report(
     if graph_path.exists():
         graph_manifest = json.loads(graph_path.read_text(encoding="utf-8"))
 
+    model_card: dict[str, Any] | None = None
+    card_path = settings.data_dir / "models" / "model_card.json"
+    if card_path.exists():
+        model_card = json.loads(card_path.read_text(encoding="utf-8"))
+
+    congestion: list[Any] = []
+    congestion_path = settings.data_dir / "models" / "port_congestion.json"
+    if congestion_path.exists():
+        congestion = json.loads(congestion_path.read_text(encoding="utf-8"))
+
     report = {
         "generatedAt": datetime.now(UTC).isoformat(),
         "anySynthetic": any(c["origin"] == Origin.SYNTHETIC.value for c in corpora),
@@ -405,6 +415,8 @@ def export_report(
         "corpora": corpora,
         "index": index_manifest,
         "graph": graph_manifest,
+        "modelCard": model_card,
+        "congestion": congestion,
     }
 
     out.parent.mkdir(parents=True, exist_ok=True)
