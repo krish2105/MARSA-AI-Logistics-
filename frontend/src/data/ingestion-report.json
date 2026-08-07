@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-07T15:29:18.382499+00:00",
+  "generatedAt": "2026-08-07T16:26:47.968014+00:00",
   "anySynthetic": true,
   "totalRecords": 5736,
   "corpora": [
@@ -706,5 +706,276 @@
         "cppi_rank": 0.0081
       }
     }
-  ]
+  ],
+  "evaluation": {
+    "generatedAt": "2026-08-07T16:26:47.025116+00:00",
+    "gate": {
+      "status": "PROVISIONAL",
+      "mayPublish": false,
+      "classifierIsLlm": false,
+      "corporaAreReal": false,
+      "judgeAvailable": false,
+      "blockers": [
+        "**The classifier is not the LLM.** Routing accuracy below measures a deterministic rule table, not the few-shot LLM call the spec specifies. The two are not comparable and this figure must not be reported as the classifier's accuracy. Set `GROQ_API_KEY` or `GEMINI_API_KEY` and re-run.",
+        "**The corpora are synthetic.** Retrieval and answer-quality figures describe the fixture generator, not CBP CROSS, UN Comtrade, DataCo or World Bank data. Run the Phase A ingestors where outbound access is permitted and re-run.",
+        "**No LLM judge is available.** RAGAS faithfulness and answer relevance are reported as `not_measured` rather than zero. Context precision and recall are deterministic and are measured."
+      ]
+    },
+    "dataset": {
+      "total": 60,
+      "byClass": {
+        "simple_factual": 20,
+        "multi_hop_reasoning": 20,
+        "relationship_network": 20
+      },
+      "byDifficulty": {
+        "clear": 48,
+        "moderate": 7,
+        "ambiguous": 5
+      }
+    },
+    "routing": {
+      "classifier": {
+        "method": "heuristic",
+        "isLlm": false
+      },
+      "n": 60,
+      "accuracy": 0.7833,
+      "baselineAccuracy": 0.3333,
+      "liftOverBaseline": 0.45,
+      "confusion": {
+        "simple_factual": {
+          "simple_factual": 20,
+          "multi_hop_reasoning": 0,
+          "relationship_network": 0
+        },
+        "multi_hop_reasoning": {
+          "simple_factual": 10,
+          "multi_hop_reasoning": 9,
+          "relationship_network": 1
+        },
+        "relationship_network": {
+          "simple_factual": 2,
+          "multi_hop_reasoning": 0,
+          "relationship_network": 18
+        }
+      },
+      "perClass": {
+        "simple_factual": {
+          "precision": 0.625,
+          "recall": 1.0,
+          "f1": 0.7692,
+          "support": 20
+        },
+        "multi_hop_reasoning": {
+          "precision": 1.0,
+          "recall": 0.45,
+          "f1": 0.6207,
+          "support": 20
+        },
+        "relationship_network": {
+          "precision": 0.9474,
+          "recall": 0.9,
+          "f1": 0.9231,
+          "support": 20
+        }
+      },
+      "byDifficulty": {
+        "clear": {
+          "accuracy": 0.7917,
+          "count": 48
+        },
+        "moderate": {
+          "accuracy": 0.7143,
+          "count": 7
+        },
+        "ambiguous": {
+          "accuracy": 0.8,
+          "count": 5
+        }
+      },
+      "confidence": {
+        "meanConfidenceCorrect": 0.7825,
+        "meanConfidenceWrong": 0.509,
+        "separation": 0.2735
+      },
+      "bias": {
+        "errors": 13,
+        "toMoreExpensive": 0,
+        "toCheaper": 13,
+        "destinations": {
+          "simple_factual": 12,
+          "relationship_network": 1
+        },
+        "note": "Leans cheap: 13 of 13 misroutes went to a cheaper path than needed, which returns thin answers to questions that deserved more."
+      },
+      "worstCases": [
+        {
+          "query": "What is the total value of goods we import from China under chapter 61?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.85,
+          "difficulty": "moderate",
+          "latencyMs": 0.044,
+          "labelRationale": "Aggregation across a corpus, not a single-document lookup."
+        },
+        {
+          "query": "What share of our HS 62 imports would be affected by a quota on Vietnam?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.85,
+          "difficulty": "clear",
+          "latencyMs": 0.047,
+          "labelRationale": "Policy condition joined to trade flows and our records."
+        },
+        {
+          "query": "What is the combined trade value across chapters 84 and 85 for 2023?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.85,
+          "difficulty": "clear",
+          "latencyMs": 0.041,
+          "labelRationale": "Multi-chapter aggregation."
+        },
+        {
+          "query": "How would a 10% duty increase on chapter 94 affect our landed costs?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.85,
+          "difficulty": "clear",
+          "latencyMs": 0.059,
+          "labelRationale": "Policy condition applied to our cost base."
+        },
+        {
+          "query": "What is our exposure by value to partners outside the GCC?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "relationship_network",
+          "correct": false,
+          "confidence": 0.85,
+          "difficulty": "ambiguous",
+          "latencyMs": 0.037,
+          "labelRationale": "Uses 'exposure', which strongly signals the graph path, but asks for a monetary aggregation rather than a network traversal."
+        },
+        {
+          "query": "Compare our import values for HS 84 and HS 85 over the last three years.",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.6167,
+          "difficulty": "clear",
+          "latencyMs": 0.046,
+          "labelRationale": "Two aggregations across a time dimension."
+        },
+        {
+          "query": "Across all markets, how many shipments missed their scheduled delivery window?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.25,
+          "difficulty": "clear",
+          "latencyMs": 0.041,
+          "labelRationale": "Aggregation with a computed condition."
+        },
+        {
+          "query": "How has our average shipping slack changed since 2022?",
+          "expected": "multi_hop_reasoning",
+          "predicted": "simple_factual",
+          "correct": false,
+          "confidence": 0.25,
+          "difficulty": "clear",
+          "latencyMs": 0.032,
+          "labelRationale": "Trend over our own records."
+        }
+      ]
+    },
+    "quality": {
+      "byPath": {
+        "fast": {
+          "n": 20,
+          "contextPrecision": 0.2,
+          "contextRecall": 1.0,
+          "faithfulness": "not_measured",
+          "answerRelevance": "not_measured"
+        },
+        "agentic": {
+          "n": 20,
+          "contextPrecision": 0.2,
+          "contextRecall": 1.0,
+          "faithfulness": "not_measured",
+          "answerRelevance": "not_measured"
+        },
+        "graph": {
+          "n": 20,
+          "contextPrecision": 0.65,
+          "contextRecall": 0.65,
+          "faithfulness": "not_measured",
+          "answerRelevance": "not_measured"
+        }
+      },
+      "judgeAvailable": false,
+      "judgeNote": "No LLM judge configured \u2014 generation metrics are not measured, not zero."
+    },
+    "benchmark": {
+      "queriesRun": 60,
+      "repeats": 1,
+      "byPath": [
+        {
+          "path": "agentic",
+          "n": 59,
+          "medianLatencyMs": 0.83,
+          "meanLatencyMs": 0.9,
+          "p95LatencyMs": 1.78,
+          "minLatencyMs": 0.75,
+          "maxLatencyMs": 2.5,
+          "coldStartMs": 154.01,
+          "costPerQueryUsd": 0.0,
+          "meanSources": 6.0,
+          "meanSteps": 5.14,
+          "meanAnswerChars": 178.0,
+          "warningRate": 0.0
+        },
+        {
+          "path": "fast",
+          "n": 59,
+          "medianLatencyMs": 5.99,
+          "meanLatencyMs": 6.2,
+          "p95LatencyMs": 8.37,
+          "minLatencyMs": 4.27,
+          "maxLatencyMs": 10.44,
+          "coldStartMs": 276.82,
+          "costPerQueryUsd": 0.0,
+          "meanSources": 5.0,
+          "meanSteps": 4.0,
+          "meanAnswerChars": 213.3,
+          "warningRate": 1.0
+        },
+        {
+          "path": "graph",
+          "n": 59,
+          "medianLatencyMs": 477.32,
+          "meanLatencyMs": 398.01,
+          "p95LatencyMs": 906.8,
+          "minLatencyMs": 11.81,
+          "maxLatencyMs": 971.13,
+          "coldStartMs": 852.85,
+          "costPerQueryUsd": 0.0,
+          "meanSources": 0.54,
+          "meanSteps": 2.42,
+          "meanAnswerChars": 700.6,
+          "warningRate": 1.0
+        }
+      ],
+      "findings": [
+        "`graph` is 575\u00d7 slower than `agentic` at the median (477.3ms vs 0.8ms).",
+        "The path named `fast` is NOT the fastest here \u2014 `agentic` is. That ordering is an artefact, not a finding: with no LLM configured the agentic path never makes a model call, so it degrades to in-memory list filtering and does far less work than its design intends. `fast` meanwhile pays a real pgvector round trip. Configure a provider and this ordering should invert.",
+        "Cost is $0.00000 on every path because no LLM provider is configured \u2014 the classifier ran as a heuristic and no path invoked a model. **The cost comparison this project exists to make is not measured by this run.**",
+        "`graph` returns under one source per query on average, so its citation coverage is materially weaker than the other paths' regardless of answer length."
+      ]
+    },
+    "corporaOrigin": "synthetic"
+  }
 }

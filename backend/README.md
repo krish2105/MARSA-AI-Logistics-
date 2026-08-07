@@ -1,7 +1,8 @@
 # MARSA AI — Backend
 
-FastAPI + LangGraph service. **Phases A–E are implemented** — ingestion, fast-path index, supply
-graph, risk models, and the LangGraph router behind a FastAPI gateway; the router and API land in later phases.
+FastAPI + LangGraph service. **Phases A–F are implemented** — ingestion,
+fast-path index, supply graph, risk models, the LangGraph router behind a
+FastAPI gateway, and the evaluation harness that grades all of it.
 
 ## Quick start
 
@@ -10,7 +11,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                    # 292 tests
+pytest                    # 340 tests
 ruff check src tests
 
 marsa-ingest fixtures     # synthetic corpora — no network needed
@@ -173,6 +174,46 @@ vanished. Caught by a test, not by review.
 
 ---
 
+## Phase F — evaluation
+
+```bash
+marsa-eval dataset      # validate the labelled set (balance, dupes, rationales)
+marsa-eval routing      # accuracy, confusion, error direction
+marsa-eval benchmark    # every query down every path, timed
+marsa-eval run          # everything → ../RESULTS.md
+```
+
+### The gate
+
+`report.evaluate_gate()` decides whether a run may publish headline figures at
+all. It requires the classifier to be the few-shot LLM, the corpora to be real,
+and an LLM judge to exist. When any precondition fails the report is written
+anyway — the pipeline works — but stamped `PROVISIONAL` with the blockers
+rendered above the first number.
+
+This exists because 78.3% reads identically whether it came from the specified
+classifier or from a rule table, and only one of those is the project's result.
+CI asserts the gate *holds*: a `FINAL` stamp from CI's synthetic corpora would
+mean the gate had stopped working.
+
+### Three measurement decisions
+
+**Every query runs down every path.** Timing only the path the router picked
+measures "how fast was the path we happened to choose", which is not a
+comparison. Forcing all three gives the counterfactual.
+
+**Cold and warm runs are separated.** The first call to any path pays to load an
+index, a graph or a corpus. Folding that into the mean makes whichever path ran
+first look slowest — a measurement artefact, not a property of the system.
+
+**The judge is a different provider from the generator.** A model asked to grade
+its own output grades it generously, so `RagasJudge` takes the *second*
+configured provider. With no provider at all, faithfulness and answer relevance
+report `not_measured` — never `0.0`, which would read as a bad score rather than
+an absent one.
+
+---
+
 ## Layout
 
 ```
@@ -220,11 +261,12 @@ src/marsa/
   api/
     main.py                  # FastAPI gateway, SSE, metrics, cost ledger
     schemas.py               # Pydantic v2 request/response
-tests/                       # 292 tests; 18 hit real Postgres, rest offline
+  eval/
+    dataset.py               # 60 hand-labelled queries, each with a rationale
+    routing.py               # accuracy, confusion, error direction, calibration
+    quality.py               # RAGAS, partitioned by what needs an LLM judge
+    benchmark.py             # every query down every path; cold/warm separated
+    report.py                # RESULTS.md + the publication gate
+    cli.py                   # marsa-eval
+tests/                       # 340 tests; 18 hit real Postgres, rest offline
 ```
-
-## Still to come
-
-| Phase | Contents |
-|---|---|
-| F | `eval/` — 60-query labelled set, RAGAS, cost/latency benchmark → `RESULTS.md` |

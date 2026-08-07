@@ -44,11 +44,14 @@ decision is auditable in the interface, not buried in a log.
 | **C** | Graph construction — NetworkX supplier/port/country graph | ✅ **Shipped** |
 | **D** | ML layer — late-delivery risk, port-congestion tiering | ✅ **Shipped** |
 | **E** | LangGraph router + FastAPI gateway + SSE streaming | ✅ **Shipped** (see caveat) |
-| F | Evaluation harness → `RESULTS.md` | ⬜ Planned |
+| **F** | Evaluation harness → `RESULTS.md` | ✅ **Shipped** (results PROVISIONAL) |
 
-**No benchmark numbers are published yet** — the dashboard's results card is
-deliberately empty rather than filled with invented figures, because the whole
-thesis depends on those numbers being measured.
+**`RESULTS.md` is stamped PROVISIONAL, and that is a deliberate outcome rather
+than unfinished work.** The harness measures what it can measure and *refuses
+to publish headline figures* when the thing being measured is not the thing the
+thesis is about — here, a heuristic classifier over synthetic corpora with no
+LLM judge. Three blockers are listed at the top of the report. Supply an API key
+and live corpora and the same command emits FINAL with no code change.
 
 ### Phase A caveat, stated plainly
 
@@ -473,6 +476,97 @@ that claims certainty it does not have is a decoration, not an audit surface.
 
 ---
 
+## Phase F: the evaluation harness
+
+The thesis — *not all questions deserve the same amount of computation* — is a
+claim about measurements, so this phase is the one that can falsify the project.
+It has four parts: a hand-labelled routing set, routing accuracy, a per-path
+cost/latency benchmark, and RAGAS quality scores.
+
+```bash
+marsa-eval dataset      # validate the labelled set
+marsa-eval routing      # routing accuracy only (fast)
+marsa-eval benchmark    # cost and latency only
+marsa-eval run          # everything → RESULTS.md
+```
+
+### The gate: a run has to earn the right to publish
+
+The most damaging failure available here is not a wrong number. It is a
+*correct* number computed over the wrong thing and presented as if it settled
+the question — 78.3% routing accuracy reads identically whether it came from
+the spec's few-shot LLM classifier or from a rule table I wrote by hand.
+
+So `evaluate_gate()` checks three preconditions before a run may publish:
+
+| Precondition | Why it blocks |
+|---|---|
+| The classifier is the few-shot LLM | Routing accuracy is the central claim; reporting a rule table's accuracy as the classifier's is simply false |
+| The corpora are real | A retrieval score over generated documents measures the generator |
+| An LLM judge is available | Otherwise faithfulness and answer relevance are absent, not zero |
+
+If any fails, the report is still written — the pipeline works and that's worth
+showing — but stamped **PROVISIONAL**, with the blockers rendered *above* the
+first number on both `RESULTS.md` and the `/data` page. A reader cannot reach
+the accuracy figure without first learning what produced it.
+
+All three fail in this environment, which is the honest result. `marsa-eval run`
+exits having refused to claim anything.
+
+### What the run did measure
+
+Everything below describes **the heuristic fallback over synthetic corpora**.
+
+- **78.3%** over 60 labelled queries against a 33.3% majority-class baseline —
+  a +45.0% lift. Balanced 20/20/20 by construction, so the baseline is exactly
+  one third and the lift is not an artefact of class skew.
+- Per class: `relationship_network` is strongest (F1 0.923); `multi_hop_reasoning`
+  has perfect precision but **0.450 recall** — it almost never fires wrongly and
+  very often fails to fire at all.
+- **Confidence separates by +0.274** (0.782 when correct vs 0.509 when wrong),
+  which is what makes the number on the Route Badge worth displaying.
+
+### The finding that contradicts the spec's hypothesis
+
+The spec anticipates a classifier that over-routes to the agentic path — the
+expensive failure. The measurement says the opposite: **all 13 misroutes went to
+a *cheaper* path than the query deserved**, ten of them multi-hop questions sent
+down the fast path. That is the quieter failure and the worse one for a user:
+an over-routed query costs money, an under-routed one returns a confident, thin
+answer to a question that needed more work.
+
+Reported as measured, because a harness that only confirms its author's
+hypothesis isn't measuring anything.
+
+### Two numbers that are artefacts, and are labelled as such
+
+`agentic` benchmarks as the **fastest** path (0.8ms median vs `fast` at 6.0ms).
+That is not a finding. With no LLM configured the agentic path never makes a
+model call, so it degrades to in-memory list filtering, while `fast` pays a real
+pgvector round trip. Configure a provider and the ordering should invert.
+`benchmark.findings()` says exactly this rather than reporting the ordering bare.
+
+Cost is **$0.00000 on every path** because nothing invoked a model — so the cost
+comparison this project exists to make is not measured by this run at all. The
+report says so in bold rather than presenting three zeroes as a result.
+
+### Bugs this phase surfaced
+
+**`findings()` asserted a cause it hadn't established.** The first version
+explained the `agentic`-is-fastest ordering by blaming a vector-store round
+trip on `fast`. Plausible, and wrong: the real reason is that agentic never
+calls an LLM. A benchmark that narrates causes it hasn't isolated is worse than
+one that reports the ordering and stops, so the explanation is now confined to
+what the run can support and is labelled an artefact.
+
+**Contrast regression in the new tables.** The confusion matrix's zero cells and
+the RAGAS `not measured` labels were dimmed to `/50` and `/70` opacity — 2.19:1
+and 3.23:1 against a 4.5:1 requirement. Both are *data*, not decoration. Measured
+with the same canvas readback the `/theme` page uses, and fixed: now 6.32:1 light
+and 7.23:1 dark.
+
+---
+
 ## Running it
 
 ### Frontend
@@ -517,6 +611,12 @@ marsa-ml card              # model card: features, exclusions, limitations
 uvicorn marsa.api.main:app --reload    # http://localhost:8000/docs
 curl -X POST localhost:8000/query -H 'Content-Type: application/json' \
   -d '{"query":"Which suppliers are exposed if Jebel Ali congestion worsens?"}'
+
+# Phase F — evaluation
+marsa-eval dataset         # validate the 60-query labelled set
+marsa-eval routing         # routing accuracy, confusion, error direction
+marsa-eval benchmark       # every query down every path, timed
+marsa-eval run             # everything → RESULTS.md (gated)
 
 # Run the pgvector integration tests against a real database:
 #   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=marsa \
@@ -580,12 +680,30 @@ frontend/
       query-console.tsx     # staged reveal: badge → steps → answer
     layout/                 # header, footer
     sections/               # hero, bento
+    data/page.tsx           # provenance: every phase's manifest, rendered
   src/lib/
     routing.ts              # routing domain model + Phase 1 fixtures
+    api.ts                  # SSE client (line-ending tolerant)
     contrast.ts             # WCAG measurement via canvas readback
     use-is-hydrated.ts      # SSR-safe hydration flag
     utils.ts                # cn()
-backend/                    # placeholder — see backend/README.md
+  src/data/
+    ingestion-report.json   # exported manifests — the /data page's only input
+
+backend/src/marsa/
+  ingestion/                # A — four corpus ingestors + provenance manifests
+  indexing/                 # B — chunking, embeddings, pgvector, BM25, RRF
+  graph/                    # C — NetworkX graph, bridge rules, traversal
+  ml/                       # D — features, temporal split, congestion tiers
+  router/                   # E — classifier, three paths, LangGraph
+  api/                      # E — FastAPI gateway + SSE
+  eval/                     # F — labelled set, metrics, benchmark, the gate
+    dataset.py              #     60 hand-labelled queries with rationales
+    routing.py              #     accuracy, confusion, bias, calibration
+    quality.py              #     RAGAS, split by what needs a judge
+    benchmark.py            #     every query down every path, cold/warm split
+    report.py               #     RESULTS.md + the publication gate
+backend/tests/              # 340 tests
 ```
 
 ---
@@ -603,14 +721,17 @@ discovered at viva:
   query volume and time window pulled will be documented; this is not live
   real-time trade data.
 - **The classifier is a prompt, not a model.** Routing is a single few-shot LLM
-  call. Its accuracy on the labelled test set will be reported honestly,
-  including any systematic misclassification pattern (over-routing ambiguous
-  queries to the agentic path is a plausible and genuinely interesting finding).
+  call. Its accuracy on the labelled test set is reported honestly, including
+  the systematic misclassification pattern — which turned out to be the
+  *opposite* of the one anticipated here: it under-routes rather than
+  over-routes. See Phase F.
 - **DataCo's label is one company's history.** `Late_delivery_risk` reflects
   that firm's specific operations. The risk model demonstrates the technique,
   not a universally generalisable prediction.
-- **Phase 1 figures are fixtures.** Every latency and cost number currently in
-  the UI is an illustrative placeholder, labelled as such in the interface.
+- **The published results are PROVISIONAL, by the harness's own decision.**
+  `RESULTS.md` lists three blockers above its first number: the classifier is
+  the heuristic, the corpora are synthetic, and there is no LLM judge. The
+  latency figures are real; the cost comparison is not measured at all.
 
 ---
 

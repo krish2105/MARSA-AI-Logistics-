@@ -124,3 +124,30 @@ jobs:
               print(f"OK {audit.path:8s} {audit.latency_ms:7.1f}ms  {query[:50]}")
           EOF
           python -c "from marsa.api.main import app; print('API imports OK:', app.title)"
+
+      # The labelled set is hand-written, so it is the part most likely to
+      # silently drift out of balance or pick up a duplicate — either of which
+      # would quietly corrupt the accuracy figure. This fails the build first,
+      # before anything measures anything.
+      - name: Validate the labelled routing set
+        run: marsa-eval dataset
+
+      # Runs the whole harness and regenerates RESULTS.md. Without an API key
+      # or live corpora the gate refuses to publish and stamps it PROVISIONAL,
+      # which is the behaviour under test as much as the numbers are.
+      - name: Evaluation harness
+        env:
+          DATABASE_URL: ${{ env.MARSA_TEST_DSN }}
+        run: |
+          marsa-eval run --limit 12
+          python - <<'EOF'
+          import json, pathlib
+          results = json.loads(pathlib.Path("../data/eval/results.json").read_text())
+          gate = results["gate"]
+          # CI has no LLM provider and only fixture corpora, so a FINAL stamp
+          # here would mean the gate had stopped working.
+          assert not gate["mayPublish"], "gate published from synthetic corpora"
+          assert gate["status"] == "PROVISIONAL", gate["status"]
+          assert len(gate["blockers"]) == 3, gate["blockers"]
+          print(f"OK gate held: {len(gate['blockers'])} blockers, status {gate['status']}")
+          EOF

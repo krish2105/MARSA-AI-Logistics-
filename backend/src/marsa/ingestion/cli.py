@@ -408,6 +408,14 @@ def export_report(
     if congestion_path.exists():
         congestion = json.loads(congestion_path.read_text(encoding="utf-8"))
 
+    # Phase F. Published with its gate attached, never without: the whole point
+    # of the gate is that a reader cannot encounter the accuracy figure without
+    # also encountering what it was measured over.
+    evaluation: dict[str, Any] | None = None
+    eval_path = settings.data_dir / "eval" / "results.json"
+    if eval_path.exists():
+        evaluation = json.loads(eval_path.read_text(encoding="utf-8"))
+
     report = {
         "generatedAt": datetime.now(UTC).isoformat(),
         "anySynthetic": any(c["origin"] == Origin.SYNTHETIC.value for c in corpora),
@@ -417,6 +425,7 @@ def export_report(
         "graph": graph_manifest,
         "modelCard": model_card,
         "congestion": congestion,
+        "evaluation": evaluation,
     }
 
     out.parent.mkdir(parents=True, exist_ok=True)

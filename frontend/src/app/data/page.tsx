@@ -5,6 +5,7 @@ import {
   Ban,
   CheckCircle2,
   Database,
+  FlaskConical,
   Layers,
   Network,
 } from "lucide-react";
@@ -31,6 +32,7 @@ export default function DataPage() {
   const graph = report.graph as GraphManifest | null;
   const modelCard = report.modelCard as ModelCard | null;
   const congestion = (report.congestion ?? []) as PortCongestion[];
+  const evaluation = (report.evaluation ?? null) as Evaluation | null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -157,6 +159,7 @@ export default function DataPage() {
       {index && <IndexSection index={index} />}
       {graph && <GraphSection graph={graph} />}
       {modelCard && <ModelSection card={modelCard} congestion={congestion} />}
+      {evaluation && <EvalSection evaluation={evaluation} />}
 
       <p className="mt-10 text-sm leading-relaxed text-muted-foreground">
         Regenerate with{" "}
@@ -695,6 +698,481 @@ function ModelSection({
           ))}
         </ul>
       </div>
+    </section>
+  );
+}
+
+interface Evaluation {
+  generatedAt: string;
+  gate: {
+    status: string;
+    mayPublish: boolean;
+    classifierIsLlm: boolean;
+    corporaAreReal: boolean;
+    judgeAvailable: boolean;
+    blockers: string[];
+  };
+  dataset: {
+    total: number;
+    byClass: Record<string, number>;
+    byDifficulty: Record<string, number>;
+  };
+  routing: {
+    classifier: { method: string; isLlm: boolean };
+    n: number;
+    accuracy: number;
+    baselineAccuracy: number;
+    liftOverBaseline: number;
+    confusion: Record<string, Record<string, number>>;
+    perClass: Record<
+      string,
+      { precision: number; recall: number; f1: number; support: number }
+    >;
+    byDifficulty: Record<string, { accuracy: number; count: number }>;
+    confidence: {
+      meanConfidenceCorrect: number;
+      meanConfidenceWrong: number;
+      separation: number;
+    };
+    bias: { errors: number; toCheaper: number; toMoreExpensive: number; note: string };
+    worstCases: {
+      query: string;
+      expected: string;
+      predicted: string;
+      confidence: number;
+    }[];
+  };
+  benchmark: {
+    queriesRun: number;
+    byPath: {
+      path: string;
+      medianLatencyMs: number;
+      p95LatencyMs: number;
+      coldStartMs: number | null;
+      costPerQueryUsd: number;
+      meanSources: number;
+      meanAnswerChars: number;
+    }[];
+    findings: string[];
+  };
+  quality: {
+    byPath: Record<
+      string,
+      {
+        contextPrecision: number;
+        contextRecall: number;
+        faithfulness: number | string;
+        answerRelevance: number | string;
+      }
+    >;
+    judgeAvailable: boolean;
+    judgeNote: string;
+  };
+}
+
+const CLASS_SHORT: Record<string, string> = {
+  simple_factual: "factual",
+  multi_hop_reasoning: "multi-hop",
+  relationship_network: "network",
+};
+
+/**
+ * Blockers are authored as markdown so RESULTS.md and this page render the same
+ * string. Only `**bold**` is used, so a split beats pulling in a parser.
+ */
+function Emphasised({ text }: { text: string }) {
+  return (
+    <>
+      {text.split("**").map((part, i) =>
+        i % 2 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>,
+      )}
+    </>
+  );
+}
+
+function EvalSection({ evaluation }: { evaluation: Evaluation }) {
+  const { gate, routing, benchmark, quality, dataset } = evaluation;
+  const classes = Object.keys(routing.confusion);
+  const notMeasured = (v: number | string) =>
+    typeof v === "number" ? v.toFixed(3) : "not measured";
+
+  return (
+    <section className="mt-14" aria-labelledby="eval-heading">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <FlaskConical className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <h2
+          id="eval-heading"
+          className="font-semibold tracking-tight"
+          style={{ fontSize: "var(--text-step-2)" }}
+        >
+          Phase F — evaluation
+        </h2>
+        <span
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+            gate.mayPublish
+              ? "bg-risk-low-muted text-risk-low"
+              : "bg-risk-medium-muted text-risk-medium",
+          )}
+        >
+          {gate.mayPublish ? (
+            <CheckCircle2 className="size-3.5" aria-hidden />
+          ) : (
+            <AlertTriangle className="size-3.5" aria-hidden />
+          )}
+          {gate.status}
+        </span>
+      </div>
+
+      {/* The gate. Deliberately above the numbers: a reader must not be able to
+          reach the accuracy figure without first learning what produced it. */}
+      {gate.blockers.length > 0 && (
+        <div
+          role="alert"
+          className="mb-6 rounded-xl border border-risk-medium/40 bg-risk-medium-muted p-4"
+        >
+          <div className="flex gap-3">
+            <AlertTriangle
+              className="mt-0.5 size-5 shrink-0 text-risk-medium"
+              aria-hidden
+            />
+            <div>
+              <p className="font-semibold text-risk-medium">
+                These numbers do not test the thesis
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">
+                The harness ran end to end, which is worth showing. It cannot
+                answer the question this project exists to ask, for{" "}
+                {gate.blockers.length} reason
+                {gate.blockers.length === 1 ? "" : "s"}:
+              </p>
+              <ol className="mt-3 space-y-2">
+                {gate.blockers.map((blocker, i) => (
+                  <li
+                    key={blocker.slice(0, 40)}
+                    className="flex gap-2.5 text-sm leading-relaxed text-foreground/80"
+                  >
+                    <span className="tabular shrink-0 text-muted-foreground">
+                      {i + 1}.
+                    </span>
+                    <span>
+                      <Emphasised text={blocker} />
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <dl className="mb-6 grid gap-4 sm:grid-cols-4">
+        <Stat
+          label={gate.classifierIsLlm ? "Routing accuracy" : "Heuristic accuracy"}
+          value={`${(routing.accuracy * 100).toFixed(1)}%`}
+        />
+        <Stat
+          label="Majority baseline"
+          value={`${(routing.baselineAccuracy * 100).toFixed(1)}%`}
+        />
+        <Stat
+          label="Lift over baseline"
+          value={`${routing.liftOverBaseline >= 0 ? "+" : ""}${(
+            routing.liftOverBaseline * 100
+          ).toFixed(1)}%`}
+        />
+        <Stat label="Labelled queries" value={dataset.total.toLocaleString()} />
+      </dl>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Confusion */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h3 className="text-sm font-semibold">Confusion matrix</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Actual ↓ / predicted →. The diagonal is correct routing.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
+                  <th scope="col" className="px-4 py-2.5 text-left font-medium">
+                    Actual
+                  </th>
+                  {classes.map((c) => (
+                    <th
+                      key={c}
+                      scope="col"
+                      className="px-3 py-2.5 text-right font-medium"
+                    >
+                      {CLASS_SHORT[c] ?? c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {classes.map((actual) => (
+                  <tr key={actual} className="border-b border-border/60 last:border-0">
+                    <th scope="row" className="px-4 py-2.5 text-left font-medium">
+                      {CLASS_SHORT[actual] ?? actual}
+                    </th>
+                    {classes.map((predicted) => {
+                      const value = routing.confusion[actual][predicted];
+                      const hit = actual === predicted;
+                      return (
+                        <td
+                          key={predicted}
+                          className={cn(
+                            "tabular px-3 py-2.5 text-right",
+                            // A zero is a result, not decoration, so it keeps
+                            // full body contrast. Weight does the recession.
+                            hit
+                              ? "font-semibold text-risk-low"
+                              : value > 0
+                                ? "text-risk-medium"
+                                : "text-muted-foreground",
+                          )}
+                        >
+                          {value}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Per class */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h3 className="text-sm font-semibold">Per class</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              20 queries per class, so support is balanced by construction.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
+                  <th scope="col" className="px-4 py-2.5 text-left font-medium">
+                    Class
+                  </th>
+                  {["Precision", "Recall", "F1"].map((h) => (
+                    <th
+                      key={h}
+                      scope="col"
+                      className="px-3 py-2.5 text-right font-medium"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(routing.perClass).map(([name, m]) => (
+                  <tr key={name} className="border-b border-border/60 last:border-0">
+                    <th scope="row" className="px-4 py-2.5 text-left font-medium">
+                      {CLASS_SHORT[name] ?? name}
+                    </th>
+                    <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                      {m.precision.toFixed(3)}
+                    </td>
+                    <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                      {m.recall.toFixed(3)}
+                    </td>
+                    <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                      {m.f1.toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Error direction — the finding the spec asks to be reported either way */}
+      <div className="mt-4 rounded-2xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold">Which way the errors go</h3>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          {routing.bias.note}
+        </p>
+        <p className="tabular mt-3 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+          Confidence separates signal from noise by{" "}
+          <strong className="text-foreground">
+            {routing.confidence.separation >= 0 ? "+" : ""}
+            {routing.confidence.separation.toFixed(3)}
+          </strong>{" "}
+          ({routing.confidence.meanConfidenceCorrect.toFixed(3)} when correct vs{" "}
+          {routing.confidence.meanConfidenceWrong.toFixed(3)} when wrong) — which is
+          what makes the confidence number on the Route Badge worth showing.
+        </p>
+      </div>
+
+      {/* Cost and latency */}
+      <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="border-b border-border px-5 py-4">
+          <h3 className="text-sm font-semibold">Cost and latency per path</h3>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            All {benchmark.queriesRun} queries were forced down all three paths, so
+            every row is a counterfactual rather than a measurement of whichever
+            path the router happened to pick. Cold starts are excluded from the
+            medians.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
+                <th scope="col" className="px-4 py-2.5 text-left font-medium">
+                  Path
+                </th>
+                {["Median", "p95", "Cold", "Cost/query", "Sources", "Chars"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      scope="col"
+                      className="px-3 py-2.5 text-right font-medium"
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {benchmark.byPath.map((row) => (
+                <tr key={row.path} className="border-b border-border/60 last:border-0">
+                  <th scope="row" className="px-4 py-2.5 text-left">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                      {row.path}
+                    </code>
+                  </th>
+                  <td className="tabular px-3 py-2.5 text-right font-medium">
+                    {row.medianLatencyMs.toFixed(1)}ms
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {row.p95LatencyMs.toFixed(1)}ms
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {row.coldStartMs ? `${row.coldStartMs.toFixed(0)}ms` : "—"}
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    ${row.costPerQueryUsd.toFixed(5)}
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {row.meanSources.toFixed(1)}
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {row.meanAnswerChars.toFixed(0)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {benchmark.findings.length > 0 && (
+          <ul className="space-y-2.5 border-t border-border px-5 py-4">
+            {benchmark.findings.map((finding) => (
+              <li
+                key={finding.slice(0, 40)}
+                className="flex gap-2.5 text-sm leading-relaxed text-muted-foreground"
+              >
+                <span
+                  aria-hidden
+                  className="mt-2 size-1 shrink-0 rounded-full bg-current"
+                />
+                <span>
+                  <Emphasised text={finding} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* RAGAS */}
+      <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="border-b border-border px-5 py-4">
+          <h3 className="text-sm font-semibold">Answer quality (RAGAS)</h3>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {quality.judgeNote} Context precision and recall need no judge and are
+            measured. A missing metric shown as <code>0.000</code> would be worse
+            than no metric, so it is not shown that way.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
+                <th scope="col" className="px-4 py-2.5 text-left font-medium">
+                  Path
+                </th>
+                {["Ctx precision", "Ctx recall", "Faithfulness", "Answer relevance"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      scope="col"
+                      className="px-3 py-2.5 text-right font-medium"
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(quality.byPath).map(([path, m]) => (
+                <tr key={path} className="border-b border-border/60 last:border-0">
+                  <th scope="row" className="px-4 py-2.5 text-left">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                      {path}
+                    </code>
+                  </th>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {m.contextPrecision.toFixed(3)}
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {m.contextRecall.toFixed(3)}
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {notMeasured(m.faithfulness)}
+                  </td>
+                  <td className="tabular px-3 py-2.5 text-right text-muted-foreground">
+                    {notMeasured(m.answerRelevance)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Most confident mistakes */}
+      {routing.worstCases.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold">Most confident mistakes</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sorted by confidence, so the top row is where the classifier was most
+            sure and most wrong.
+          </p>
+          <ul className="mt-4 space-y-3">
+            {routing.worstCases.slice(0, 5).map((c) => (
+              <li key={c.query} className="text-sm">
+                <p className="leading-snug">{c.query}</p>
+                <p className="tabular mt-1 text-xs text-muted-foreground">
+                  expected <code className="font-mono">{c.expected}</code> · routed to{" "}
+                  <code className="font-mono text-risk-medium">{c.predicted}</code> ·
+                  confidence {c.confidence.toFixed(2)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

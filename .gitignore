@@ -43,6 +43,10 @@ data/index/
 data/graph/
 # Built by `marsa-ml train` / `congestion` — model pickle, card, port scores.
 data/models/
+# Written by `marsa-eval run` — the machine-readable sidecar. RESULTS.md at the
+# repo root IS committed: it carries the gate stamp, and a report that only
+# exists on someone's laptop cannot be checked by anyone.
+data/eval/
 data/*.pkl
 artifacts/
 *.joblib
