@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2, Database, Layers } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Database, Layers, Network } from "lucide-react";
 
 import report from "@/data/ingestion-report.json";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ const SOURCE_LABELS: Record<string, string> = {
 export default function DataPage() {
   const { corpora, anySynthetic, totalRecords, generatedAt } = report;
   const index = report.index as IndexManifest | null;
+  const graph = report.graph as GraphManifest | null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -144,6 +145,7 @@ export default function DataPage() {
       </div>
 
       {index && <IndexSection index={index} />}
+      {graph && <GraphSection graph={graph} />}
 
       <p className="mt-10 text-sm leading-relaxed text-muted-foreground">
         Regenerate with{" "}
@@ -266,6 +268,162 @@ function IndexSection({ index }: { index: IndexManifest }) {
           {total.toLocaleString()} chunks · {index.embedding.backend} ·{" "}
           {index.embedding.dim}d · built in {index.duration_seconds}s
         </p>
+      </div>
+    </section>
+  );
+}
+
+interface GraphManifest {
+  built_at: string;
+  size_bytes: number;
+  stats: {
+    nodes: number;
+    edges: number;
+    nodesByKind: Record<string, number>;
+    edgesByKind: Record<string, number>;
+    inferredEdges: number;
+    inferredByBasis: Record<string, number>;
+    inferredShare: number;
+    components: number;
+    largestComponent: number;
+    isolatedNodes: number;
+    origin: string;
+  };
+  bridge_rules: Record<string, { description: string; caveat: string }>;
+}
+
+function GraphSection({ graph }: { graph: GraphManifest }) {
+  const s = graph.stats;
+  const connected = s.nodes ? s.largestComponent / s.nodes : 0;
+  const topNodes = Object.entries(s.nodesByKind).sort((a, b) => b[1] - a[1]);
+  const topEdges = Object.entries(s.edgesByKind).sort((a, b) => b[1] - a[1]);
+  const maxEdge = Math.max(...topEdges.map(([, n]) => n), 1);
+
+  return (
+    <section className="mt-14" aria-labelledby="graph-heading">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Network className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <h2
+          id="graph-heading"
+          className="font-semibold tracking-tight"
+          style={{ fontSize: "var(--text-step-2)" }}
+        >
+          Phase C — supply graph
+        </h2>
+        <span
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+            s.origin === "synthetic"
+              ? "bg-risk-medium-muted text-risk-medium"
+              : "bg-risk-low-muted text-risk-low",
+          )}
+        >
+          {s.origin === "synthetic" ? (
+            <AlertTriangle className="size-3.5" aria-hidden />
+          ) : (
+            <CheckCircle2 className="size-3.5" aria-hidden />
+          )}
+          {s.origin === "synthetic" ? "SYNTHETIC" : "live"}
+        </span>
+      </div>
+
+      <p className="mb-6 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        Suppliers, products, ports, countries and tariff chapters in one
+        NetworkX graph. The four corpora share no keys, so joining them requires
+        assumptions — every such edge is marked <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">inferred</code>{" "}
+        and carries the rule that produced it, so an answer can never quietly
+        rest on one.
+      </p>
+
+      <dl className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Nodes" value={s.nodes.toLocaleString()} />
+        <Stat label="Edges" value={s.edges.toLocaleString()} />
+        <Stat label="Connected" value={`${(connected * 100).toFixed(1)}%`} />
+        <Stat
+          label="Inferred edges"
+          value={`${s.inferredEdges.toLocaleString()} (${(s.inferredShare * 100).toFixed(0)}%)`}
+        />
+      </dl>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold">Nodes by kind</h3>
+          <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2">
+            {topNodes.map(([kind, count]) => (
+              <li key={kind} className="flex items-baseline gap-2 text-sm">
+                <span className="truncate text-muted-foreground">{kind}</span>
+                <span className="tabular ml-auto font-mono text-xs">
+                  {count.toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold">Edges by kind</h3>
+          <ul className="mt-4 space-y-2">
+            {topEdges.map(([kind, count]) => {
+              const inferred = Boolean(s.inferredByBasis) && ["routes_through", "ships_from", "ships_to"].includes(kind);
+              return (
+                <li key={kind} className="flex items-center gap-3 text-sm">
+                  <span className="w-36 shrink-0 truncate text-muted-foreground">
+                    {kind}
+                  </span>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "h-2 rounded-full",
+                      inferred ? "bg-risk-medium" : "bg-route-graph",
+                    )}
+                    style={{ width: `${Math.max(3, (count / maxEdge) * 45)}%`, opacity: 0.75 }}
+                  />
+                  <span className="tabular ml-auto shrink-0 font-mono text-xs">
+                    {count.toLocaleString()}
+                    {inferred && <span className="text-risk-medium"> ·inf</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold">Bridging assumptions</h3>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Cross-corpus joins this project is asserting, not reading. Each is
+          disclosed inline whenever an answer depends on it.
+        </p>
+        <dl className="mt-4 space-y-4">
+          {Object.entries(graph.bridge_rules).map(([name, rule]) => (
+            <div key={name}>
+              <dt className="flex flex-wrap items-baseline gap-2">
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                  {name}
+                </code>
+                {s.inferredByBasis[name] !== undefined && (
+                  <span className="tabular font-mono text-xs text-muted-foreground">
+                    {s.inferredByBasis[name].toLocaleString()} edges
+                  </span>
+                )}
+              </dt>
+              <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                {rule.description}
+              </dd>
+              <dd
+                className={cn(
+                  "mt-1 text-sm leading-relaxed",
+                  rule.caveat.startsWith("None")
+                    ? "text-muted-foreground/70"
+                    : "text-risk-medium",
+                )}
+              >
+                {rule.caveat}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );

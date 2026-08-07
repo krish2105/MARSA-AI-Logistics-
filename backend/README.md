@@ -1,7 +1,7 @@
 # MARSA AI — Backend
 
-FastAPI + LangGraph service. **Phases A (ingestion) and B (fast-path index) are
-implemented**; the router and API land in later phases.
+FastAPI + LangGraph service. **Phases A (ingestion), B (fast-path index) and C (supply
+graph) are implemented**; the router and API land in later phases.
 
 ## Quick start
 
@@ -10,7 +10,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                    # 45 tests, fully offline
+pytest                    # 193 tests
 ruff check src tests
 
 marsa-ingest fixtures     # synthetic corpora — no network needed
@@ -193,14 +193,22 @@ src/marsa/
     rerank.py                # cross-encoder + lexical fallback
     hybrid.py                # RRF fusion, parent rollup, retrieval trace
     cli.py                   # marsa-index
-tests/                       # 123 tests; 18 hit real Postgres, rest offline
+  graph/
+    schema.py                # node/edge kinds, typed IDs, bridge-rule registry
+    bridges.py               # every cross-corpus join, in one auditable module
+    build.py                 # assemble from all four corpora
+    resolve.py               # query text → graph nodes
+    traverse.py              # k-hop subgraph, damped risk propagation
+    narrate.py               # subgraph → prose, with caveats inline
+    store.py                 # pickle + manifest
+    cli.py                   # marsa-graph
+tests/                       # 193 tests; 18 hit real Postgres, rest offline
 ```
 
 ## Still to come
 
 | Phase | Contents |
 |---|---|
-| C | `graph/` — NetworkX supplier/product/port/country graph + pickle |
 | D | `ml/` — late-delivery classifier, port-congestion tiering |
 | E | `router/` + `api/` — LangGraph router, FastAPI, SSE, `/health`, `/metrics` |
 | F | `eval/` — 60-query labelled set, RAGAS, cost/latency benchmark → `RESULTS.md` |

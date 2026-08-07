@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-07T14:48:54.993008+00:00",
+  "generatedAt": "2026-08-07T15:14:23.197561+00:00",
   "anySynthetic": true,
   "totalRecords": 5736,
   "corpora": [
@@ -10,13 +10,13 @@
       "recordCount": 288,
       "requestCount": 0,
       "cacheHits": 0,
-      "completedAt": "2026-08-07T08:59:05.755188+00:00",
-      "durationSeconds": 0.042,
+      "completedAt": "2026-08-07T15:09:31.368186+00:00",
+      "durationSeconds": 0.067,
       "subsetRationale": null,
       "warnings": [
         "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
       ],
-      "sha256": "1408e9783d1b21d1",
+      "sha256": "d29a5885ce89097c",
       "parameters": {
         "seed": 42
       }
@@ -28,13 +28,13 @@
       "recordCount": 400,
       "requestCount": 0,
       "cacheHits": 0,
-      "completedAt": "2026-08-07T08:59:05.734621+00:00",
-      "durationSeconds": 0.021,
+      "completedAt": "2026-08-07T15:09:31.329707+00:00",
+      "durationSeconds": 0.028,
       "subsetRationale": null,
       "warnings": [
         "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
       ],
-      "sha256": "10f5ea86a43901e1",
+      "sha256": "950ff972d307d495",
       "parameters": {
         "count": 400,
         "seed": 42
@@ -47,13 +47,13 @@
       "recordCount": 5000,
       "requestCount": 0,
       "cacheHits": 0,
-      "completedAt": "2026-08-07T08:59:05.979436+00:00",
-      "durationSeconds": 0.266,
+      "completedAt": "2026-08-07T15:09:31.621582+00:00",
+      "durationSeconds": 0.32,
       "subsetRationale": null,
       "warnings": [
         "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
       ],
-      "sha256": "e7a32eae8ea81bbe",
+      "sha256": "5a17a0ccd38c55ee",
       "parameters": {
         "count": 5000,
         "seed": 42
@@ -66,13 +66,13 @@
       "recordCount": 36,
       "requestCount": 0,
       "cacheHits": 0,
-      "completedAt": "2026-08-07T08:59:05.981652+00:00",
-      "durationSeconds": 0.268,
+      "completedAt": "2026-08-07T15:09:31.624603+00:00",
+      "durationSeconds": 0.323,
       "subsetRationale": null,
       "warnings": [
         "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
       ],
-      "sha256": "90e65540059508af",
+      "sha256": "d9bc7abeb76f7b95",
       "parameters": {
         "seed": 42
       }
@@ -84,13 +84,13 @@
       "recordCount": 12,
       "requestCount": 0,
       "cacheHits": 0,
-      "completedAt": "2026-08-07T08:59:05.982792+00:00",
-      "durationSeconds": 0.269,
+      "completedAt": "2026-08-07T15:09:31.626271+00:00",
+      "durationSeconds": 0.325,
       "subsetRationale": null,
       "warnings": [
         "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
       ],
-      "sha256": "02e73a32268ef68c",
+      "sha256": "3a32d6db71b0cc41",
       "parameters": {
         "seed": 42
       }
@@ -116,5 +116,80 @@
       "HOLDING": 400
     },
     "semantic_embeddings": false
+  },
+  "graph": {
+    "built_at": "2026-08-07T15:14:08.002072+00:00",
+    "graph_file": "supply_graph.pkl",
+    "size_bytes": 625211,
+    "sha256": "1bae098ddca1c1ef",
+    "stats": {
+      "nodes": 3035,
+      "edges": 3873,
+      "nodesByKind": {
+        "ruling": 400,
+        "hts": 14,
+        "hts_chapter": 11,
+        "country": 35,
+        "port": 12,
+        "category": 8,
+        "department": 4,
+        "product": 2529,
+        "market": 5,
+        "region": 17
+      },
+      "edgesByKind": {
+        "classified_under": 408,
+        "cites": 582,
+        "part_of": 68,
+        "trades_with": 16,
+        "routes_through": 10,
+        "ships_from": 216,
+        "located_in": 12,
+        "ships_to": 32,
+        "in_category": 2529
+      },
+      "inferredEdges": 280,
+      "inferredByBasis": {
+        "hts_code_to_chapter": 14,
+        "country_to_gateway_port": 10,
+        "country_name_to_iso3": 248,
+        "category_to_hs_chapter": 8
+      },
+      "components": 6,
+      "largestComponent": 3029,
+      "isolatedNodes": 4,
+      "density": 0.000421,
+      "origin": "synthetic",
+      "inferredShare": 0.0723
+    },
+    "build_report": {
+      "citations": 582,
+      "rulings": 400,
+      "flows": 288,
+      "gateways": 10,
+      "shipments": {
+        "origin_resolved": 5000,
+        "category_mapped": 5000
+      },
+      "orders": 5000
+    },
+    "bridge_rules": {
+      "country_name_to_iso3": {
+        "description": "DataCo stores country names in Spanish ('Alemania', 'Estados Unidos') with no ISO code. They are mapped to ISO3 via an explicit lookup so DataCo shipments can join Comtrade flows and World Bank LPI scores.",
+        "caveat": "Names outside the lookup are dropped rather than guessed, so a DataCo country this project has not seen contributes no edges."
+      },
+      "category_to_hs_chapter": {
+        "description": "DataCo product categories carry no tariff code. They are mapped to plausible HS chapters ('Electronics' \u2192 85, 'Men's Footwear' \u2192 64) so shipment data connects to the CROSS ruling corpus.",
+        "caveat": "This is a coarse editorial mapping, not a customs classification. A real broker classifies per article, not per merchandising category, and would frequently disagree."
+      },
+      "country_to_gateway_port": {
+        "description": "DataCo has no port field. Each country is linked to its highest-ranked Container Port Performance Index port as the assumed gateway, giving shipments a routing path through the port network.",
+        "caveat": "Real shipments use many ports per country and often tranship through a third country. Treating one port as the gateway overstates the concentration of exposure at that port."
+      },
+      "hts_code_to_chapter": {
+        "description": "The first two digits of an HTS code are its HS chapter. Ruling-level codes are rolled up so chapter-level questions traverse cleanly.",
+        "caveat": "None \u2014 this one is definitional, not an assumption."
+      }
+    }
   }
 }

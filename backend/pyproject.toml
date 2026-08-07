@@ -17,6 +17,7 @@ dependencies = [
     "numpy>=1.26",
     "rank-bm25>=0.2.2",
     "psycopg[binary]>=3.1",
+    "networkx>=3.3",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,7 @@ dev = [
 [project.scripts]
 marsa-ingest = "marsa.ingestion.cli:app"
 marsa-index = "marsa.indexing.cli:app"
+marsa-graph = "marsa.graph.cli:app"
 
 [build-system]
 requires = ["setuptools>=68"]

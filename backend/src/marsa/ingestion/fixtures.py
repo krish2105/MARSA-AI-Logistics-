@@ -124,10 +124,10 @@ def generate_cross_rulings(count: int = 400, *, seed: int = 42) -> Iterator[Cros
         origin_country = rng.choice(["China", "India", "Vietnam", "Korea", "Germany"])
         subject = f"Tariff classification of {product}{variant} from {origin_country}"
 
-        cited = rng.sample(
-            [n for n in numbers if n != number],
-            k=rng.randint(0, 3),
-        )
+        # Clamp to the pool: `rng.sample` raises when k exceeds the population,
+        # so generating a tiny corpus (count <= 3) would crash outright.
+        pool = [n for n in numbers if n != number]
+        cited = rng.sample(pool, k=min(rng.randint(0, 3), len(pool)))
         reasoning = rng.choice(_REASONING).format(
             function=rng.choice(_FUNCTIONS),
             feature=rng.choice(_FEATURES),
@@ -240,12 +240,38 @@ _SHIPPING_MODES = {
     "Same Day": 0.80,
 }
 _MARKETS = ["Africa", "Europe", "LATAM", "Pacific Asia", "USCA"]
-_REGIONS = {
-    "Africa": ["North Africa", "West Africa", "East Africa"],
-    "Europe": ["Western Europe", "Northern Europe", "Southern Europe"],
-    "LATAM": ["Central America", "South America", "Caribbean"],
-    "Pacific Asia": ["Southeast Asia", "Eastern Asia", "South Asia", "Oceania"],
-    "USCA": ["West of USA", "US Center", "East of USA", "Canada"],
+# Market → region → (country, city). Nested rather than sampled independently:
+# drawing each level separately produced records like "Alemania / Mumbai / East
+# Africa", which build a nonsense supply graph in Phase C. Country names are
+# Spanish because that is how the real DataCo dataset stores them.
+_GEOGRAPHY: dict[str, dict[str, list[tuple[str, str]]]] = {
+    "Africa": {
+        "North Africa": [("Egipto", "Cairo"), ("Marruecos", "Casablanca")],
+        "West Africa": [("Nigeria", "Lagos"), ("Ghana", "Accra")],
+        "East Africa": [("Kenia", "Nairobi"), ("Etiopía", "Addis Abeba")],
+    },
+    "Europe": {
+        "Western Europe": [("Alemania", "Berlin"), ("Francia", "Paris")],
+        "Northern Europe": [("Reino Unido", "London"), ("Países Bajos", "Rotterdam")],
+        "Southern Europe": [("España", "Madrid"), ("Italia", "Milan")],
+    },
+    "LATAM": {
+        "Central America": [("México", "Ciudad de Mexico"), ("Honduras", "Tegucigalpa")],
+        "South America": [("Brasil", "Sao Paulo"), ("Argentina", "Buenos Aires")],
+        "Caribbean": [("República Dominicana", "Santo Domingo"), ("Cuba", "La Habana")],
+    },
+    "Pacific Asia": {
+        "Southeast Asia": [("Vietnam", "Ho Chi Minh"), ("Singapur", "Singapore")],
+        "Eastern Asia": [("China", "Shanghai"), ("Japón", "Tokyo")],
+        "South Asia": [("India", "Mumbai"), ("Pakistán", "Karachi")],
+        "Oceania": [("Australia", "Sydney")],
+    },
+    "USCA": {
+        "West of USA": [("Estados Unidos", "Los Angeles")],
+        "US Center": [("Estados Unidos", "Chicago")],
+        "East of USA": [("Estados Unidos", "New York")],
+        "Canada": [("Canadá", "Toronto")],
+    },
 }
 _CATEGORIES = [
     ("Electronics", "Technology"), ("Cameras", "Technology"),
@@ -266,7 +292,8 @@ def generate_dataco_orders(count: int = 5000, *, seed: int = 42) -> Iterator[Dat
     for i in range(count):
         mode = rng.choice(list(_SHIPPING_MODES))
         market = rng.choice(_MARKETS)
-        region = rng.choice(_REGIONS[market])
+        region = rng.choice(list(_GEOGRAPHY[market]))
+        origin_country, origin_city = rng.choice(_GEOGRAPHY[market][region])
         category, department = rng.choice(_CATEGORIES)
 
         scheduled = {"Same Day": 0, "First Class": 1, "Second Class": 2, "Standard Class": 4}[mode]
@@ -306,8 +333,8 @@ def generate_dataco_orders(count: int = 5000, *, seed: int = 42) -> Iterator[Dat
             product_name=f"{category} item {rng.randint(1, 400)}",
             category_name=category,
             department_name=department,
-            order_country=rng.choice(["Estados Unidos", "India", "Nigeria", "Brasil", "Alemania"]),
-            order_city=rng.choice(["Mumbai", "Lagos", "Sao Paulo", "Berlin", "New York"]),
+            order_country=origin_country,
+            order_city=origin_city,
             order_region=region,
             market=market,
             order_item_quantity=rng.randint(1, 5),

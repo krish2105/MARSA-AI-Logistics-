@@ -393,12 +393,18 @@ def export_report(
     if index_path.exists():
         index_manifest = json.loads(index_path.read_text(encoding="utf-8"))
 
+    graph_manifest: dict[str, Any] | None = None
+    graph_path = settings.data_dir / "graph" / "graph.manifest.json"
+    if graph_path.exists():
+        graph_manifest = json.loads(graph_path.read_text(encoding="utf-8"))
+
     report = {
         "generatedAt": datetime.now(UTC).isoformat(),
         "anySynthetic": any(c["origin"] == Origin.SYNTHETIC.value for c in corpora),
         "totalRecords": sum(c["recordCount"] for c in corpora),
         "corpora": corpora,
         "index": index_manifest,
+        "graph": graph_manifest,
     }
 
     out.parent.mkdir(parents=True, exist_ok=True)

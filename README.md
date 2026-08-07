@@ -41,7 +41,7 @@ decision is auditable in the interface, not buried in a log.
 | **1** | Design system, app shell, theme system, Route Badge (mock stream) | ✅ **Shipped** |
 | **A** | Data ingestion — CROSS, Comtrade, DataCo, World Bank LPI | ✅ **Shipped** (see caveat) |
 | **B** | Fast-path index — chunking, pgvector, BM25, reranker | ✅ **Shipped** (see caveat) |
-| C | Graph construction — NetworkX supplier/port/country graph | ⬜ Planned |
+| **C** | Graph construction — NetworkX supplier/port/country graph | ✅ **Shipped** |
 | D | ML layer — late-delivery risk, port-congestion tiering | ⬜ Planned |
 | E | LangGraph router + FastAPI gateway + SSE streaming | ⬜ Planned |
 | F | Evaluation harness → `RESULTS.md` | ⬜ Planned |
@@ -258,6 +258,83 @@ accident.
 
 ---
 
+## Phase C: the supply graph
+
+3,035 nodes and 3,873 edges joining suppliers, products, categories, ports,
+countries, tariff codes and rulings — 99.8% in one connected component.
+
+```
+        ruling ──cites──► ruling
+           │
+    classified_under
+           ▼
+     hts ──part_of──► hts_chapter ◄──classified_under── category
+                                                          │  ▲
+                                            ships_to      │  │ ships_from
+                                                          ▼  │
+   port ◄──routes_through── country ──trades_with──► country
+     │                         ▲
+  located_in ──────────────────┘
+```
+
+**The four corpora share no keys.** CROSS speaks HTS codes, Comtrade speaks UN
+M49 numbers, DataCo speaks Spanish country names and merchandising categories,
+the World Bank speaks ISO3 and UN/LOCODE. Connecting them *is* the work, and
+every join is a decision this project makes rather than a fact it reads.
+
+So each is declared in one module (`graph/bridges.py`), every edge it produces
+carries `inferred=True` plus the rule that made it, and the narrator discloses
+them inline:
+
+| Bridge | Edges | The honest caveat |
+|---|---|---|
+| `country_name_to_iso3` | 248 | Unmapped names are dropped, not guessed — a wrong corridor is worse than a missing one |
+| `hts_code_to_chapter` | 14 | None — definitional |
+| `country_to_gateway_port` | 10 | Countries use many ports; one gateway **overstates** concentration at that port |
+| `category_to_hs_chapter` | 8 | Editorial mapping, not a customs classification — a broker would often disagree |
+
+**Traversal is undirected**, deliberately: exposure propagates *against* the
+flow of goods. If Jebel Ali congests, disruption travels backwards to the
+suppliers who ship through it. A directed walk from the port reaches almost
+nothing.
+
+**Risk is damped diffusion, best-path not summed.** Exposure is the strongest
+dependency, so a supplier with one critical link ranks above one with three
+weak ones. Inferred edges conduct at 80% — exposure reaching a node only
+through assumptions ranks below exposure backed by data. Citation edges don't
+conduct at all: a legal relationship is not a physical route.
+
+```
+$ marsa-graph query "Which suppliers are exposed if Jebel Ali congestion worsens?"
+
+Starting from Jebel Ali (CPPI rank 12, 21.4h average vessel time), a 3-hop
+traversal reaches 34 nodes across 105 edges.
+
+Of those, 7 have only one gateway port in this graph and therefore no
+substitutable routing: ARE, IND, USA, SGP, CHN, DEU, KOR. That is the
+concentration risk — the remainder have at least one alternative.
+
+Affected product categories: Electronics (0.10, 61% historical late rate), …
+
+Provenance: 71 of 105 edges here (68%) are bridging assumptions rather than
+recorded facts. …
+```
+
+### Bugs this phase surfaced
+
+- **Default traversal depth was structurally wrong.** The graph layers are
+  port → country → category → product, so a supplier-exposure question seeded
+  on a port *cannot* be answered at 2 hops — it stops one layer short of the
+  goods. Default is now 3, and shallow traversals say so rather than letting
+  the omission read as "there are none".
+- **Fixture geography was incoherent** — market, region, country and city were
+  sampled independently, producing "Alemania / Mumbai / East Africa". That
+  builds a nonsense graph. Now nested and asserted by test.
+- **The citation sampler crashed on small corpora** — `rng.sample` was asked
+  for more rulings than existed.
+
+---
+
 ## Running it
 
 ### Frontend
@@ -275,7 +352,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                     # 123 tests; pgvector tests skip without a DSN
+pytest                     # 193 tests; pgvector tests skip without a DSN
 ruff check src tests
 
 marsa-ingest fixtures      # synthetic corpora, no network
@@ -286,6 +363,12 @@ marsa-ingest export-report # publish manifests to the /data page
 marsa-index build          # chunk → embed → pgvector + BM25
 marsa-index query "What HTS code applies to lithium-ion power banks?"
 marsa-index stats
+
+# Phase C — supply graph
+marsa-graph build          # assemble from every corpus
+marsa-graph query "Which suppliers are exposed if Jebel Ali congestion worsens?"
+marsa-graph stats          # composition, connectivity, inferred share
+marsa-graph node port:AEJEA
 
 # Run the pgvector integration tests against a real database:
 #   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=marsa \
@@ -321,7 +404,7 @@ No backend is required for Phase 1.
 next-themes · Motion v13 · lucide-react
 
 **Backend** — Python 3.11 · Pydantic v2 · httpx + tenacity · pandas ·
-pgvector · rank-bm25 · numpy · typer. Optional `[ml]` extra adds
+pgvector · rank-bm25 · numpy · networkx · typer. Optional `[ml]` extra adds
 sentence-transformers for MiniLM and the cross-encoder.
 
 FastAPI + LangGraph land in Phase E — see `backend/README.md`.

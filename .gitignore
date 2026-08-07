@@ -39,6 +39,8 @@ data/.http-cache/
 # reproducible from the corpora; the manifest is published into
 # frontend/src/data/ingestion-report.json, which IS committed.
 data/index/
+# Built by `marsa-graph build` — pickle + manifest, reproducible from corpora.
+data/graph/
 data/*.pkl
 artifacts/
 *.joblib
