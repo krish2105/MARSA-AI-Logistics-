@@ -1,0 +1,37 @@
+# MARSA AI — local development stack.
+#
+# Deliberately no `postgres` service: the master spec points dev *and* prod at
+# hosted Neon/Supabase pgvector, which keeps local resource load at zero.
+# Set DATABASE_URL in .env and both environments talk to the same managed DB.
+#
+# The `backend` service is commented out until Phase E lands its Dockerfile;
+# Phase 1 (frontend + theme system) runs standalone against mock fixtures.
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: marsa-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: marsa-backend
+  #   ports:
+  #     - "8000:8000"
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./backend:/app
+  #   command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload

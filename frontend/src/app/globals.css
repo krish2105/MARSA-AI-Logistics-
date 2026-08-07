@@ -1,0 +1,311 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MARSA AI — "Deep Harbour" design tokens
+   ───────────────────────────────────────────────────────────────────────────
+   Every colour is authored in OKLCH (Tailwind v4's default space) because it is
+   perceptually uniform: holding L constant across hues yields swatches that
+   *look* equally bright, which is what makes the three routing-path colours
+   read as peers rather than a hierarchy.
+
+   Dark is the designed-first theme (per spec); light is a deliberate
+   re-derivation, not a mechanical inversion — chroma is raised and lightness
+   dropped on accents so they survive a white background at 4.5:1.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Tailwind v4 has no config file: the class-based dark strategy is declared
+   here so `dark:` utilities follow the .dark class that next-themes toggles. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── Light theme ────────────────────────────────────────────────────────── */
+:root {
+  --radius: 0.75rem;
+
+  /* Surfaces — a faint blue cast keeps light mode from going clinical white */
+  --background: oklch(0.985 0.003 240);
+  --foreground: oklch(0.205 0.026 252);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.026 252);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.026 252);
+
+  /* Quiet surfaces + secondary text */
+  --muted: oklch(0.958 0.006 244);
+  --muted-foreground: oklch(0.487 0.026 250);
+  --secondary: oklch(0.958 0.006 244);
+  --secondary-foreground: oklch(0.245 0.026 252);
+  --accent: oklch(0.945 0.012 220);
+  --accent-foreground: oklch(0.245 0.026 252);
+
+  /* Brand — harbour cyan. Darkened here to clear 4.5:1 on --background. */
+  --primary: oklch(0.512 0.114 224);
+  --primary-foreground: oklch(0.99 0.002 240);
+
+  --destructive: oklch(0.545 0.202 27);
+  --destructive-foreground: oklch(0.99 0.002 240);
+
+  --border: oklch(0.902 0.008 245);
+  --input: oklch(0.902 0.008 245);
+  --ring: oklch(0.512 0.114 224);
+
+  /* ─ Routing paths — the product's semantic core.
+       Three well-separated hues (cyan 210 / violet 296 / emerald 156) so the
+       Route Badge is distinguishable at a glance, and distinguishable by
+       *hue distance* rather than lightness alone (deuteranopia-safe). */
+  --route-fast: oklch(0.505 0.116 210);
+  --route-fast-foreground: oklch(0.99 0.002 240);
+  --route-fast-muted: oklch(0.945 0.031 210);
+
+  --route-agentic: oklch(0.508 0.166 296);
+  --route-agentic-foreground: oklch(0.99 0.002 240);
+  --route-agentic-muted: oklch(0.948 0.033 296);
+
+  --route-graph: oklch(0.498 0.107 156);
+  --route-graph-foreground: oklch(0.99 0.002 240);
+  --route-graph-muted: oklch(0.945 0.036 156);
+
+  /* ─ Risk tiers — late-delivery + port-congestion scoring (Phase D) */
+  /* Lightness here was solved against each chip's own tinted background, not
+     eyeballed: amber in particular had to drop from L 0.612 to 0.536 to clear
+     4.5:1, because a mid-lightness warm hue on a warm tint is the single most
+     common AA failure in status UI. */
+  --risk-low: oklch(0.516 0.113 156);
+  --risk-low-muted: oklch(0.945 0.036 156);
+  --risk-medium: oklch(0.536 0.132 72);
+  --risk-medium-muted: oklch(0.955 0.045 82);
+  --risk-high: oklch(0.55 0.216 27);
+  --risk-high-muted: oklch(0.952 0.033 27);
+
+  /* ─ Chart series — cost/latency comparison, LPI trends */
+  --chart-1: oklch(0.505 0.116 210);
+  --chart-2: oklch(0.508 0.166 296);
+  --chart-3: oklch(0.498 0.107 156);
+  --chart-4: oklch(0.612 0.132 72);
+  --chart-5: oklch(0.552 0.196 27);
+
+  /* Elevation. Deliberately soft + blue-tinted rather than neutral black. */
+  --shadow-color: 220 35% 24%;
+}
+
+/* ─── Dark theme (designed first) ────────────────────────────────────────── */
+.dark {
+  /* Abyss navy, not neutral black — chroma 0.018 at hue 252 reads as "deep
+     water" and prevents the flat, dead look of pure #0a0a0a. */
+  --background: oklch(0.152 0.018 252);
+  --foreground: oklch(0.962 0.005 245);
+  --card: oklch(0.191 0.021 252);
+  --card-foreground: oklch(0.962 0.005 245);
+  --popover: oklch(0.184 0.021 252);
+  --popover-foreground: oklch(0.962 0.005 245);
+
+  --muted: oklch(0.242 0.021 252);
+  --muted-foreground: oklch(0.712 0.023 248);
+  --secondary: oklch(0.258 0.022 252);
+  --secondary-foreground: oklch(0.962 0.005 245);
+  --accent: oklch(0.272 0.028 250);
+  --accent-foreground: oklch(0.962 0.005 245);
+
+  /* Brand accents lift in lightness and drop in chroma against the dark
+     ground — high-chroma cyan on near-black vibrates and fatigues the eye. */
+  --primary: oklch(0.782 0.116 210);
+  --primary-foreground: oklch(0.168 0.028 250);
+
+  --destructive: oklch(0.668 0.176 27);
+  --destructive-foreground: oklch(0.168 0.028 250);
+
+  --border: oklch(0.292 0.023 252);
+  --input: oklch(0.302 0.023 252);
+  --ring: oklch(0.782 0.116 210);
+
+  --route-fast: oklch(0.792 0.114 210);
+  --route-fast-foreground: oklch(0.168 0.028 250);
+  --route-fast-muted: oklch(0.282 0.048 210);
+
+  --route-agentic: oklch(0.752 0.132 296);
+  --route-agentic-foreground: oklch(0.168 0.028 250);
+  --route-agentic-muted: oklch(0.288 0.062 296);
+
+  --route-graph: oklch(0.788 0.126 156);
+  --route-graph-foreground: oklch(0.168 0.028 250);
+  --route-graph-muted: oklch(0.278 0.052 156);
+
+  --risk-low: oklch(0.788 0.126 156);
+  --risk-low-muted: oklch(0.278 0.052 156);
+  --risk-medium: oklch(0.812 0.136 82);
+  --risk-medium-muted: oklch(0.292 0.052 82);
+  --risk-high: oklch(0.702 0.166 27);
+  --risk-high-muted: oklch(0.288 0.062 27);
+
+  --chart-1: oklch(0.792 0.114 210);
+  --chart-2: oklch(0.752 0.132 296);
+  --chart-3: oklch(0.788 0.126 156);
+  --chart-4: oklch(0.812 0.136 82);
+  --chart-5: oklch(0.702 0.166 27);
+
+  --shadow-color: 220 60% 3%;
+}
+
+/* ─── Expose tokens to Tailwind ──────────────────────────────────────────────
+   `@theme inline` (not plain `@theme`) is required: it emits utilities that
+   reference the custom property rather than snapshotting its value, so a
+   single `bg-card` follows the .dark class instead of being compiled twice. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-route-fast: var(--route-fast);
+  --color-route-fast-foreground: var(--route-fast-foreground);
+  --color-route-fast-muted: var(--route-fast-muted);
+  --color-route-agentic: var(--route-agentic);
+  --color-route-agentic-foreground: var(--route-agentic-foreground);
+  --color-route-agentic-muted: var(--route-agentic-muted);
+  --color-route-graph: var(--route-graph);
+  --color-route-graph-foreground: var(--route-graph-foreground);
+  --color-route-graph-muted: var(--route-graph-muted);
+
+  --color-risk-low: var(--risk-low);
+  --color-risk-low-muted: var(--risk-low-muted);
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-medium-muted: var(--risk-medium-muted);
+  --color-risk-high: var(--risk-high);
+  --color-risk-high-muted: var(--risk-high-muted);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Fluid type — clamp() interpolates instead of jumping at breakpoints */
+  --text-step--1: clamp(0.83rem, 0.79rem + 0.18vw, 0.92rem);
+  --text-step-0: clamp(0.95rem, 0.92rem + 0.16vw, 1.03rem);
+  --text-step-1: clamp(1.15rem, 1.08rem + 0.34vw, 1.33rem);
+  --text-step-2: clamp(1.38rem, 1.26rem + 0.6vw, 1.72rem);
+  --text-step-3: clamp(1.66rem, 1.46rem + 0.98vw, 2.22rem);
+  --text-step-4: clamp(1.99rem, 1.69rem + 1.51vw, 2.87rem);
+  --text-step-5: clamp(2.39rem, 1.94rem + 2.25vw, 3.7rem);
+  --text-hero: clamp(2.6rem, 1.6rem + 4.9vw, 5.6rem);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-cubic: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    /* Drives native scrollbars, form controls and the UA's own dark styling.
+       Set here as a static fallback; the theme script overrides it per-theme
+       before first paint so there is no light scrollbar flash on dark. */
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-step-0);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Every interactive element gets a visible, theme-aware focus ring. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Tabular numerals everywhere numbers are compared column-to-column
+     (latency, cost, LPI scores) so digits don't shimmy between renders. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Theme transition — circular reveal via the View Transitions API
+   ───────────────────────────────────────────────────────────────────────────
+   The browser snapshots the page before and after the class flip. We suppress
+   the default cross-fade and instead animate a clip-path circle on the *new*
+   snapshot, expanding from the toggle's centre to the farthest viewport corner
+   (radius computed in ThemeToggle). The old snapshot sits underneath, so the
+   effect is a wipe rather than a dissolve — no half-blended intermediate state.
+   ═══════════════════════════════════════════════════════════════════════════ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2147483646;
+}
+
+/* Reversed stacking when going dark → light reads better as the *old* theme
+   being peeled away. Set by ThemeToggle via a root data attribute. */
+html[data-theme-transition="peel"]::view-transition-old(root) {
+  z-index: 2147483646;
+}
+
+html[data-theme-transition="peel"]::view-transition-new(root) {
+  z-index: 1;
+}
+
+/* ─── Reduced motion: the single most important accessibility rule here ────
+   A full-viewport wipe is exactly the kind of large-area motion that triggers
+   vestibular symptoms. Under `prefers-reduced-motion` the transition is
+   skipped entirely and the theme swaps instantly. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
