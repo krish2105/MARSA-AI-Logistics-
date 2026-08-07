@@ -45,6 +45,7 @@ decision is auditable in the interface, not buried in a log.
 | **D** | ML layer — late-delivery risk, port-congestion tiering | ✅ **Shipped** |
 | **E** | LangGraph router + FastAPI gateway + SSE streaming | ✅ **Shipped** (see caveat) |
 | **F** | Evaluation harness → `RESULTS.md` | ✅ **Shipped** (results PROVISIONAL) |
+| **Deploy** | Compose stack, production images, Vercel + Render + Neon | ✅ **Shipped** — see [DEPLOY.md](DEPLOY.md) |
 
 **`RESULTS.md` is stamped PROVISIONAL, and that is a deliberate outcome rather
 than unfinished work.** The harness measures what it can measure and *refuses
@@ -569,6 +570,24 @@ and 7.23:1 dark.
 
 ## Running it
 
+**The whole stack, one command, no accounts and no API keys:**
+
+```bash
+docker compose up --build
+```
+
+Frontend on <http://localhost:3000>, gateway on <http://localhost:8000/docs>.
+Postgres with pgvector comes up alongside them; the backend bakes its corpora,
+graph and models into the image and builds the fast-path index on boot.
+
+Without an API key the router falls back to the heuristic classifier and says
+so on `/health` and in every audit record. Everything else runs for real.
+
+**[DEPLOY.md](DEPLOY.md) is the full runbook** — running from source, deploying
+to Vercel + Render + Neon, the complete environment-variable table, and the
+two mistakes that make the console silently show fixture data instead of live
+results.
+
 ### Frontend
 
 ```bash
@@ -637,14 +656,14 @@ npx tsc --noEmit     # type-check
 npm run build        # production build
 ```
 
-Or via Docker:
+The frontend runs standalone against local fixtures if you only want the UI:
 
 ```bash
-cp .env.example .env
 docker compose up frontend
 ```
 
-No backend is required for Phase 1.
+It will show "unreachable — replaying local fixtures", which is accurate: no
+gateway is running. `docker compose up` brings up all three services.
 
 ### Stack
 
@@ -703,7 +722,7 @@ backend/src/marsa/
     quality.py              #     RAGAS, split by what needs a judge
     benchmark.py            #     every query down every path, cold/warm split
     report.py               #     RESULTS.md + the publication gate
-backend/tests/              # 340 tests
+backend/tests/              # 344 tests
 ```
 
 ---

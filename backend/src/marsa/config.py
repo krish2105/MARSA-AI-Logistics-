@@ -76,7 +76,12 @@ class Settings(BaseSettings):
 
     # CORS is an allowlist, never "*" — the gateway is public and the browser
     # is its only legitimate caller.
-    cors_allowed_origins: str = "http://localhost:3000"
+    # Both loopback spellings, because they are *different origins* to a browser
+    # and only one of them being allowed fails in the most confusing way
+    # available: the gateway is up, the fetch is rejected before it is sent, and
+    # the console silently drops to fixture mode as though nothing were running.
+    # Still an allowlist, never "*" — production overrides this with real hosts.
+    cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     rate_limit_per_minute: int = 60
 
     # Kaggle needs credentials; DataCo cannot be fetched anonymously.

@@ -1,0 +1,21 @@
+# Never ship the build context's own artifacts — `npm ci` and `next build` run
+# inside the image, and a host .next/ leaking in produces a stale, confusing mix.
+node_modules
+.next
+out
+build
+
+.git
+.gitignore
+Dockerfile
+.dockerignore
+
+.env
+.env.local
+.env.*.local
+
+npm-debug.log*
+yarn-error.log*
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts

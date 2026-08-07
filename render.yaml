@@ -1,0 +1,58 @@
+# MARSA AI — Render blueprint for the FastAPI gateway.
+#
+# Render → New → Blueprint → point at this repo. Everything below is created
+# automatically except the two secrets marked `sync: false`, which Render
+# prompts for (it will not read them from a file, by design).
+#
+# The frontend is NOT here — it deploys to Vercel. See DEPLOY.md.
+
+services:
+  - type: web
+    name: marsa-gateway
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+
+    # /health reports resource availability and whether an LLM is configured,
+    # so it is a real readiness signal rather than a hardcoded 200.
+    healthCheckPath: /health
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+
+      # Neon's pooled connection string. Created as a secret rather than a
+      # Render-managed database because Render's free Postgres has no pgvector
+      # and expires after 30 days; Neon's free tier has pgvector and does not.
+      - key: DATABASE_URL
+        sync: false
+
+      # Refuse to boot if the index silently falls back to the in-process numpy
+      # store. Without this a wrong DSN produces a green service that never
+      # touches pgvector and loses its vectors on every restart.
+      - key: MARSA_REQUIRE_PGVECTOR
+        value: "true"
+
+      # The Vercel origin. CORS is an allowlist, so this must be the exact
+      # scheme+host the browser sends — no trailing slash, no wildcard.
+      # Update it after the first Vercel deploy tells you the real domain.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+      # Optional. Without a provider the router falls back to the heuristic
+      # classifier; /health and every audit record say so explicitly.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+      # torch is not installed in the image, so `local` would fail at import.
+      - key: EMBEDDING_BACKEND
+        value: hashed
+
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: LOG_LEVEL
+        value: INFO

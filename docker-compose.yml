@@ -1,37 +1,75 @@
-# MARSA AI — local development stack.
+# MARSA AI — full local stack: pgvector, FastAPI gateway, Next.js frontend.
 #
-# Deliberately no `postgres` service: the master spec points dev *and* prod at
-# hosted Neon/Supabase pgvector, which keeps local resource load at zero.
-# Set DATABASE_URL in .env and both environments talk to the same managed DB.
+#   cp .env.example .env     # optional; every service has a working default
+#   docker compose up --build
 #
-# The `backend` service is commented out until Phase E lands its Dockerfile;
-# Phase 1 (frontend + theme system) runs standalone against mock fixtures.
+# Frontend  → http://localhost:3000
+# Gateway   → http://localhost:8000/docs
+#
+# Postgres runs here rather than pointing at hosted Neon, so `docker compose up`
+# works with no accounts and no network. Production points DATABASE_URL at Neon
+# instead — see DEPLOY.md.
 
 services:
+  postgres:
+    # The pgvector image, not stock postgres: the extension has to exist before
+    # `CREATE EXTENSION vector` in the index build can succeed.
+    image: pgvector/pgvector:pg16
+    container_name: marsa-postgres
+    environment:
+      POSTGRES_USER: marsa
+      POSTGRES_PASSWORD: marsa
+      POSTGRES_DB: marsa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsa -d marsa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: marsa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Service name, not localhost — inside the network `localhost` is the
+      # backend container itself and the connection is refused.
+      DATABASE_URL: postgresql://marsa:marsa@postgres:5432/marsa
+      ENVIRONMENT: production
+      EMBEDDING_BACKEND: hashed
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # Optional. Without these the router falls back to the heuristic
+      # classifier and /health says so in plain text.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
+    depends_on:
+      postgres:
+        # Not just `started` — the entrypoint builds the index immediately, and
+        # against a container that is up but not yet accepting connections that
+        # build fails and the fast path is silently unavailable.
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Baked into the client bundle at build time and read by the *browser*,
+        # so it must be an address the browser can reach — localhost, not the
+        # `backend` service name, which does not resolve outside the network.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
     container_name: marsa-frontend
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    command: npm run dev
+    depends_on:
+      - backend
 
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: marsa-backend
-  #   ports:
-  #     - "8000:8000"
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./backend:/app
-  #   command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+volumes:
+  pgdata:

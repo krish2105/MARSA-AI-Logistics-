@@ -308,6 +308,39 @@ def client():
         yield test_client
 
 
+class TestCors:
+    """CORS is the one misconfiguration that fails completely invisibly.
+
+    A blocked request never reaches the application, so the gateway logs
+    nothing and looks healthy while the browser console degrades to fixture
+    mode. These pin the allowlist against the two ways that happens.
+    """
+
+    def test_both_loopback_spellings_are_allowed_by_default(self):
+        from marsa.config import Settings
+
+        origins = Settings().cors_allowed_origins
+        assert "http://localhost:3000" in origins
+        # Not the same origin as localhost to a browser. Allowing only one
+        # means `docker compose up` works and opening 127.0.0.1 does not.
+        assert "http://127.0.0.1:3000" in origins
+
+    def test_allowlist_is_never_a_wildcard(self):
+        from marsa.config import Settings
+
+        assert "*" not in Settings().cors_allowed_origins
+
+    def test_allowed_origin_gets_the_header_back(self, client):
+        response = client.get("/health", headers={"Origin": "http://localhost:3000"})
+        assert response.headers.get("access-control-allow-origin") == (
+            "http://localhost:3000"
+        )
+
+    def test_unlisted_origin_gets_no_header(self, client):
+        response = client.get("/health", headers={"Origin": "https://evil.example"})
+        assert "access-control-allow-origin" not in response.headers
+
+
 class TestApi:
     def test_health_reports_resources_and_llm(self, client):
         payload = client.get("/health").json()

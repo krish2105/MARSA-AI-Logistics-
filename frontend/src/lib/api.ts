@@ -57,13 +57,23 @@ export interface AuditPayload {
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
-/** Probe the gateway. Used to decide live vs fixture mode. */
+/** How long to wait for the gateway before declaring it absent. */
+const HEALTH_TIMEOUT_MS = 2500;
+
+/**
+ * Probe the gateway. Used to decide live vs fixture mode.
+ *
+ * The timeout is load-bearing, not defensive. Until the probe settles the
+ * console sits in `checking`, which disables every control — so a gateway that
+ * accepts the connection and then never answers (a suspended free-tier dyno is
+ * exactly this) leaves the UI permanently inert with no error to explain it.
+ * Resolving `false` degrades to fixture mode, which the page states on screen.
+ */
 export async function checkHealth(signal?: AbortSignal): Promise<boolean> {
+  const timeout = AbortSignal.timeout(HEALTH_TIMEOUT_MS);
   try {
     const response = await fetch(`${API_BASE}/health`, {
-      signal,
-      // A hung backend must not hold the console in a loading state; 2s is
-      // generous for a localhost health check.
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       cache: "no-store",
     });
     return response.ok;

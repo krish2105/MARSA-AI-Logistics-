@@ -1,0 +1,26 @@
+# The image builds its own corpora, graph and models — a host `data/` leaking
+# into the build context would bake someone's local state into the image.
+../data
+data
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+.git
+.gitignore
+Dockerfile
+.dockerignore
+
+.env
+.env.local
+*.log
+.DS_Store
