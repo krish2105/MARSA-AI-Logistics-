@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-07T08:59:06.590744+00:00",
+  "generatedAt": "2026-08-07T14:48:54.993008+00:00",
   "anySynthetic": true,
   "totalRecords": 5736,
   "corpora": [
@@ -95,5 +95,26 @@
         "seed": 42
       }
     }
-  ]
+  ],
+  "index": {
+    "built_at": "2026-08-07T14:48:35.095073+00:00",
+    "duration_seconds": 1.75,
+    "rulings": 400,
+    "chunks": 1600,
+    "chunks_per_ruling": 4.0,
+    "median_chunk_words": 20,
+    "vector_store": "PgVectorStore",
+    "embedding": {
+      "backend": "hashed-ngram",
+      "dim": 384,
+      "semantic": false
+    },
+    "sections": {
+      "SUBJECT": 400,
+      "ISSUE": 400,
+      "LAW AND ANALYSIS": 400,
+      "HOLDING": 400
+    },
+    "semantic_embeddings": false
+  }
 }

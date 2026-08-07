@@ -47,6 +47,28 @@ jobs:
       run:
         working-directory: backend
 
+    # pgvector integration tests run against a real database rather than a
+    # mock — mocking a vector store mostly tests the mock. They skip cleanly
+    # when MARSA_TEST_DSN is unset, so this service is what actually exercises
+    # the SQL, the HNSW index and the distance-to-similarity conversion.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: marsa
+          POSTGRES_PASSWORD: marsa
+          POSTGRES_DB: marsa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MARSA_TEST_DSN: postgresql://marsa:marsa@localhost:5432/marsa
+
     steps:
       - uses: actions/checkout@v4
 
@@ -67,7 +89,12 @@ jobs:
       - name: Test
         run: pytest
 
-      - name: Fixture pipeline smoke test
+      # End-to-end: generate corpora, build the index into the real pgvector
+      # service, then run a query. Catches wiring breaks that unit tests miss.
+      - name: Pipeline smoke test
         run: |
           marsa-ingest fixtures --rulings 50 --orders 200
           marsa-ingest status
+          DATABASE_URL="$MARSA_TEST_DSN" marsa-index build --embedding-backend hashed
+          DATABASE_URL="$MARSA_TEST_DSN" marsa-index stats
+          DATABASE_URL="$MARSA_TEST_DSN" marsa-index query "8507.60.0020"

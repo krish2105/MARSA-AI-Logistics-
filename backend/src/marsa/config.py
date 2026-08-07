@@ -53,6 +53,18 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 30.0
     http_max_retries: int = 5
 
+    # ─── Indexing (Phase B) ─────────────────────────────────────────────────
+    # Postgres + pgvector. Unset (or left as the .env.example placeholder)
+    # falls back to the local numpy store, which does exact search and is
+    # genuinely fine at this corpus size.
+    database_url: str | None = None
+
+    # `auto` prefers the spec's MiniLM and degrades to hashed n-grams when the
+    # weights cannot be fetched. Retrieval quality differs enormously between
+    # the two, so the active backend is recorded in every index manifest.
+    embedding_backend: str = "auto"
+    rerank_backend: str = "auto"
+
     # Kaggle needs credentials; DataCo cannot be fetched anonymously.
     kaggle_username: str | None = None
     kaggle_key: str | None = None

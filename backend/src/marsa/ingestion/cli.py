@@ -385,11 +385,20 @@ def export_report(
             }
         )
 
+    # Fold in the Phase B index manifest when one exists, so /data shows the
+    # whole data lineage — what was ingested *and* what was built from it —
+    # rather than making the reader correlate two pages.
+    index_manifest: dict[str, Any] | None = None
+    index_path = settings.data_dir / "index" / "index.manifest.json"
+    if index_path.exists():
+        index_manifest = json.loads(index_path.read_text(encoding="utf-8"))
+
     report = {
         "generatedAt": datetime.now(UTC).isoformat(),
         "anySynthetic": any(c["origin"] == Origin.SYNTHETIC.value for c in corpora),
         "totalRecords": sum(c["recordCount"] for c in corpora),
         "corpora": corpora,
+        "index": index_manifest,
     }
 
     out.parent.mkdir(parents=True, exist_ok=True)

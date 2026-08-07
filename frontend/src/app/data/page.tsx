@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2, Database } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Database, Layers } from "lucide-react";
 
 import report from "@/data/ingestion-report.json";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export default function DataPage() {
   const { corpora, anySynthetic, totalRecords, generatedAt } = report;
+  const index = report.index as IndexManifest | null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -142,14 +143,131 @@ export default function DataPage() {
         })}
       </div>
 
+      {index && <IndexSection index={index} />}
+
       <p className="mt-10 text-sm leading-relaxed text-muted-foreground">
         Regenerate with{" "}
         <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
           marsa-ingest export-report
         </code>{" "}
-        after any ingestion run.
+        after any ingestion or index run.
       </p>
     </div>
+  );
+}
+
+interface IndexManifest {
+  built_at: string;
+  duration_seconds: number;
+  rulings: number;
+  chunks: number;
+  chunks_per_ruling: number;
+  median_chunk_words: number;
+  vector_store: string;
+  embedding: { backend: string; dim: number; semantic: boolean };
+  sections: Record<string, number>;
+  semantic_embeddings: boolean;
+}
+
+/** Rollup weights, mirrored from backend chunking.py. */
+const SECTION_WEIGHTS: Record<string, number> = {
+  HOLDING: 1.0,
+  "LAW AND ANALYSIS": 0.92,
+  ANALYSIS: 0.92,
+  SUBJECT: 0.8,
+  ISSUE: 0.75,
+  "DESCRIPTION OF MERCHANDISE": 0.62,
+  MERCHANDISE: 0.62,
+  FACTS: 0.62,
+  PREAMBLE: 0.55,
+  "EFFECT ON OTHER RULINGS": 0.5,
+};
+
+function IndexSection({ index }: { index: IndexManifest }) {
+  const total = Object.values(index.sections).reduce((a, b) => a + b, 0);
+  const ordered = Object.entries(index.sections).sort(
+    (a, b) => (SECTION_WEIGHTS[b[0]] ?? 0.6) - (SECTION_WEIGHTS[a[0]] ?? 0.6),
+  );
+
+  return (
+    <section className="mt-14" aria-labelledby="index-heading">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Layers className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <h2
+          id="index-heading"
+          className="font-semibold tracking-tight"
+          style={{ fontSize: "var(--text-step-2)" }}
+        >
+          Phase B — fast-path index
+        </h2>
+        <span
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+            index.semantic_embeddings
+              ? "bg-risk-low-muted text-risk-low"
+              : "bg-risk-medium-muted text-risk-medium",
+          )}
+        >
+          {index.semantic_embeddings ? (
+            <CheckCircle2 className="size-3.5" aria-hidden />
+          ) : (
+            <AlertTriangle className="size-3.5" aria-hidden />
+          )}
+          {index.semantic_embeddings ? "semantic" : "NON-SEMANTIC"}
+        </span>
+      </div>
+
+      <p className="mb-6 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        Parent-child chunking over the CROSS corpus: children are embedded and
+        BM25-indexed, whole rulings are returned. Retrieval fuses dense and
+        sparse results by reciprocal rank, then reranks.{" "}
+        {!index.semantic_embeddings && (
+          <>
+            This index was built with hashed n-grams rather than MiniLM, because
+            huggingface.co is unreachable here — it matches{" "}
+            <strong>lexically, not semantically</strong>, so no retrieval-quality
+            figure derived from it is publishable.
+          </>
+        )}
+      </p>
+
+      <dl className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Rulings indexed" value={index.rulings.toLocaleString()} />
+        <Stat label="Child chunks" value={index.chunks.toLocaleString()} />
+        <Stat label="Chunks per ruling" value={index.chunks_per_ruling.toFixed(1)} />
+        <Stat label="Vector store" value={index.vector_store.replace("Store", "")} />
+      </dl>
+
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold">Chunks by section</h3>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Rollup weight decides which ruling wins when several match — a holding
+          is the decision, a description is context.
+        </p>
+        <ul className="mt-4 space-y-2.5">
+          {ordered.map(([section, count]) => {
+            const weight = SECTION_WEIGHTS[section] ?? 0.6;
+            return (
+              <li key={section} className="flex items-center gap-3">
+                <span className="w-52 shrink-0 truncate text-sm">{section}</span>
+                <span
+                  aria-hidden
+                  className="h-2 rounded-full bg-route-fast"
+                  style={{ width: `${Math.max(4, weight * 55)}%`, opacity: 0.35 + weight * 0.65 }}
+                />
+                <span className="tabular ml-auto shrink-0 font-mono text-xs text-muted-foreground">
+                  {count.toLocaleString()} · w{weight.toFixed(2)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="tabular mt-4 border-t border-border/70 pt-3 font-mono text-xs text-muted-foreground">
+          {total.toLocaleString()} chunks · {index.embedding.backend} ·{" "}
+          {index.embedding.dim}d · built in {index.duration_seconds}s
+        </p>
+      </div>
+    </section>
   );
 }
 

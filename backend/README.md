@@ -1,7 +1,7 @@
 # MARSA AI — Backend
 
-FastAPI + LangGraph service. **Phase A (data ingestion) is implemented**; the
-router and API land in later phases.
+FastAPI + LangGraph service. **Phases A (ingestion) and B (fast-path index) are
+implemented**; the router and API land in later phases.
 
 ## Quick start
 
@@ -77,6 +77,102 @@ D's LogReg vs XGBoost vs LightGBM comparison exercises real model behaviour
 rather than fitting noise. Tests assert both that the signal exists and that it
 is *not* perfectly separable.
 
+---
+
+## Phase B — the fast-path index
+
+```bash
+marsa-index build      # chunk → embed → pgvector + BM25
+marsa-index query "What HTS code applies to lithium-ion power banks?"
+marsa-index stats      # chunk counts by section, backend in use
+```
+
+### Pipeline
+
+```
+query
+  ├─ dense  (embed → pgvector cosine top-20)
+  └─ sparse (BM25 top-20)
+        ↓  reciprocal rank fusion
+        ↓  rerank (top-12)
+        ↓  child → parent rollup
+  whole rulings, with citations
+```
+
+### Parent-child chunking
+
+A CROSS ruling has a fixed rhetorical shape — describe, issue, reason, hold.
+Nearly all answer-bearing signal is in the last two sections; most of the token
+count is in the first two. Embedding whole rulings therefore dilutes exactly the
+text a classification question asks about.
+
+So **children are embedded, parents are returned**: each child is one reasoning
+or holding paragraph, and the fast path hands the LLM the whole ruling so the
+citation is quotable rather than a fragment.
+
+Section weight decides which *ruling* wins at rollup:
+
+| Section | Weight | |
+|---|---|---|
+| `HOLDING` | 1.00 | the operative subheading |
+| `LAW AND ANALYSIS` | 0.92 | the reasoning |
+| `SUBJECT` | 0.80 | states product + origin in the shape users ask |
+| `ISSUE` | 0.75 | the question, not the answer |
+| `DESCRIPTION OF MERCHANDISE` | 0.62 | background |
+
+### Why RRF and not weighted score blending
+
+Dense cosine similarity lives in [-1, 1] and clusters around 0.2–0.6. BM25 is
+unbounded and scales with corpus statistics and query length. Blending them
+means normalising two distributions whose shapes vary per query — and min-max
+normalisation is dominated by whichever list contains an outlier.
+
+Reciprocal rank fusion (`k=60`, Cormack et al.) discards magnitudes and uses
+only rank. No tuning, robust to either retriever misbehaving. The cost is real:
+RRF throws away confidence, so a dense hit at 0.95 and one at 0.35 contribute
+identically at equal rank. The rerank stage restores a calibrated ordering.
+
+### Backends
+
+| Component | Spec / intended | Offline fallback |
+|---|---|---|
+| Embeddings | `all-MiniLM-L6-v2`, 384d | hashed word+char n-grams, 384d |
+| Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` | lexical heuristic |
+| Vector store | Postgres + pgvector (HNSW, cosine) | numpy exact search |
+
+Both embedders emit **384 dimensions** deliberately — the pgvector column, the
+HNSW index and every stored row are identical across backends, so swapping the
+fallback for real MiniLM is a re-embed, not a schema migration.
+
+The fallbacks exist because huggingface.co is unreachable in some environments
+(including this project's build sandbox). The hashed embedder is a real
+technique — signed feature hashing, L2-normalised — not a stub, so the whole
+pipeline is exercised faithfully. What it is **not** is semantic: it cannot
+match "power bank" to "portable battery charger". `is_semantic` is threaded
+through the retrieval trace and index manifest so no quality figure can be
+published from a fallback run by accident.
+
+Install the real path with `pip install -e ".[ml]"` (pulls torch — kept optional
+so a blocked-egress environment is not forced to install it).
+
+### Three bugs worth knowing about
+
+**`HOLDING` was being deleted from the index.** A uniform 25-word minimum, meant
+to suppress noise fragments, silently dropped every holding — and a holding is
+routinely two sentences ("The applicable subheading will be 8507.60.0020. The
+rate of duty will be free."). That is 15 words and the single most important
+sentence in the ruling. Minimums are now section-aware; chunk count doubled.
+
+**psycopg cannot run multi-statement SQL as a prepared statement**, and
+`VECTOR(n)` is a *type modifier* so it cannot be a bind parameter at all.
+Schema statements are issued individually with the dimension coerced via `int()`.
+
+**The "never lose a ruling" guard was a no-op** — the fallback path ran through
+the same length filter it existed to bypass, so terse ruling bodies still
+vanished. Caught by a test, not by review.
+
+---
+
 ## Layout
 
 ```
@@ -86,20 +182,24 @@ src/marsa/
   ingestion/
     schemas.py               # normalised Pydantic v2 models + Provenance
     fetcher.py               # rate limit, retry, cache, error classification
-    cross.py                 # CBP CROSS rulings
-    comtrade.py              # UN Comtrade preview tier
-    dataco.py                # DataCo CSV / Kaggle
-    worldbank.py             # LPI 2.0 + CPPI
+    cross.py / comtrade.py / dataco.py / worldbank.py
     fixtures.py              # seeded synthetic corpora
-    cli.py                   # typer CLI
-tests/                       # 45 tests, respx-mocked, no network
+    cli.py                   # marsa-ingest
+  indexing/
+    chunking.py              # parent-child splitter, section weights
+    embeddings.py            # MiniLM + hashed n-gram fallback
+    store.py                 # pgvector (HNSW) + numpy exact search
+    sparse.py                # BM25 with an HTS-safe tokenizer
+    rerank.py                # cross-encoder + lexical fallback
+    hybrid.py                # RRF fusion, parent rollup, retrieval trace
+    cli.py                   # marsa-index
+tests/                       # 123 tests; 18 hit real Postgres, rest offline
 ```
 
 ## Still to come
 
 | Phase | Contents |
 |---|---|
-| B | `indexing/` — parent-child chunking, MiniLM → pgvector, BM25, cross-encoder reranker |
 | C | `graph/` — NetworkX supplier/product/port/country graph + pickle |
 | D | `ml/` — late-delivery classifier, port-congestion tiering |
 | E | `router/` + `api/` — LangGraph router, FastAPI, SSE, `/health`, `/metrics` |

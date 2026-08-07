@@ -35,6 +35,10 @@ next-env.d.ts
 data/raw/
 data/processed/
 data/.http-cache/
+# Built by `marsa-index build` — BM25 pickle, vector dump, manifest. Fully
+# reproducible from the corpora; the manifest is published into
+# frontend/src/data/ingestion-report.json, which IS committed.
+data/index/
 data/*.pkl
 artifacts/
 *.joblib

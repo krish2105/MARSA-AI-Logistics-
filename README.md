@@ -40,7 +40,7 @@ decision is auditable in the interface, not buried in a log.
 |---|---|---|
 | **1** | Design system, app shell, theme system, Route Badge (mock stream) | ✅ **Shipped** |
 | **A** | Data ingestion — CROSS, Comtrade, DataCo, World Bank LPI | ✅ **Shipped** (see caveat) |
-| B | Fast-path index — chunking, pgvector, BM25, reranker | ⬜ Planned |
+| **B** | Fast-path index — chunking, pgvector, BM25, reranker | ✅ **Shipped** (see caveat) |
 | C | Graph construction — NetworkX supplier/port/country graph | ⬜ Planned |
 | D | ML layer — late-delivery risk, port-congestion tiering | ⬜ Planned |
 | E | LangGraph router + FastAPI gateway + SSE streaming | ⬜ Planned |
@@ -202,6 +202,62 @@ full code, not by reading the pattern.
 
 ---
 
+## Phase B: the fast-path index
+
+```
+query
+  ├─ dense  (embed → pgvector cosine top-20)
+  └─ sparse (BM25 top-20)
+        ↓  reciprocal rank fusion (k=60)
+        ↓  rerank (top-12)
+        ↓  child → parent rollup
+  whole rulings, with citations
+```
+
+**Parent-child chunking.** A CROSS ruling describes, states an issue, reasons,
+then holds. Nearly all answer-bearing signal is in the last two sections; most
+of the token count is in the first two. So children are embedded and parents
+are returned — retrieval matches the holding paragraph, the LLM gets the whole
+quotable ruling.
+
+**RRF over score blending.** Dense cosine sits in [-1, 1] and clusters around
+0.2–0.6; BM25 is unbounded and scales with corpus statistics. Normalising two
+per-query distributions is a losing game, so fusion uses rank only. The honest
+cost: RRF discards confidence, which is what the rerank stage restores.
+
+**BM25 is not optional here.** Half of what this corpus answers is exact-identifier
+lookup ("what falls under 8507.60.0020"). Dense embeddings are systematically bad
+at those — every tariff code occupies nearly the same neighbourhood. That
+complementarity is the whole argument for hybrid, and it only holds if the
+tokenizer keeps `8507.60.0020` as one token, which it does.
+
+### Phase B caveat
+
+Postgres 16 + pgvector 0.6.0 runs for real here, so the vector store, HNSW index
+and SQL are genuinely exercised — 18 integration tests hit a live database.
+
+But `huggingface.co` is blocked, so **MiniLM and the cross-encoder could not be
+loaded**. The index was built with a hashed n-gram embedder and a lexical
+reranker instead. Both are real techniques, not stubs, and both emit 384
+dimensions so swapping in MiniLM is a re-embed rather than a migration. Neither
+is *semantic*: they cannot match "power bank" to "portable battery charger".
+
+`is_semantic` is threaded through the retrieval trace, the index manifest and
+the `/data` page, so a quality figure cannot be published from a fallback run by
+accident.
+
+### Bugs this phase surfaced
+
+- **`HOLDING` was being deleted from the index.** A uniform 25-word minimum
+  dropped every holding — and holdings are routinely 15 words and the single
+  most important sentence in the ruling. Chunk count doubled after the fix.
+- **psycopg rejects multi-statement SQL as a prepared statement**, and
+  `VECTOR(n)` is a type modifier that cannot be a bind parameter.
+- **The "never lose a ruling" guard was a no-op** — it ran through the same
+  filter it existed to bypass. Caught by a test, not by review.
+
+---
+
 ## Running it
 
 ### Frontend
@@ -219,12 +275,22 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                     # 45 tests, fully offline (respx-mocked)
+pytest                     # 123 tests; pgvector tests skip without a DSN
 ruff check src tests
 
 marsa-ingest fixtures      # synthetic corpora, no network
 marsa-ingest status        # what's on disk, and is it real?
 marsa-ingest export-report # publish manifests to the /data page
+
+# Phase B — fast-path index
+marsa-index build          # chunk → embed → pgvector + BM25
+marsa-index query "What HTS code applies to lithium-ion power banks?"
+marsa-index stats
+
+# Run the pgvector integration tests against a real database:
+#   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=marsa \
+#     -e POSTGRES_USER=marsa -e POSTGRES_DB=marsa pgvector/pgvector:pg16
+#   MARSA_TEST_DSN=postgresql://marsa:marsa@localhost:5432/marsa pytest
 
 # Where egress is permitted:
 marsa-ingest probe-cross   # verify the CROSS contract FIRST
@@ -251,11 +317,14 @@ No backend is required for Phase 1.
 
 ### Stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · next-themes ·
-Motion v13 · lucide-react
+**Frontend** — Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 ·
+next-themes · Motion v13 · lucide-react
 
-The backend (FastAPI + LangGraph + pgvector + NetworkX) lands in later phases —
-see `backend/README.md` for the planned layout.
+**Backend** — Python 3.11 · Pydantic v2 · httpx + tenacity · pandas ·
+pgvector · rank-bm25 · numpy · typer. Optional `[ml]` extra adds
+sentence-transformers for MiniLM and the cross-encoder.
+
+FastAPI + LangGraph land in Phase E — see `backend/README.md`.
 
 ---
 
