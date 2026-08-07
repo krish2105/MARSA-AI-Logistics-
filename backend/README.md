@@ -1,7 +1,7 @@
 # MARSA AI — Backend
 
-FastAPI + LangGraph service. **Phases A (ingestion), B (fast-path index), C (supply
-graph) and D (risk models) are implemented**; the router and API land in later phases.
+FastAPI + LangGraph service. **Phases A–E are implemented** — ingestion, fast-path index, supply
+graph, risk models, and the LangGraph router behind a FastAPI gateway; the router and API land in later phases.
 
 ## Quick start
 
@@ -10,7 +10,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                    # 240 tests
+pytest                    # 292 tests
 ruff check src tests
 
 marsa-ingest fixtures     # synthetic corpora — no network needed
@@ -211,12 +211,20 @@ src/marsa/
     enrich.py                # folds both models back into the graph
     artifacts.py             # model pickle + model card
     cli.py                   # marsa-ml
-tests/                       # 240 tests; 18 hit real Postgres, rest offline
+  router/
+    llm.py                   # LiteLLM over Groq/Gemini/Cerebras + cost accounting
+    classifier.py            # few-shot LLM classifier + heuristic fallback
+    paths.py                 # the three path nodes
+    state.py                 # shared state + the single audit record
+    graph.py                 # LangGraph StateGraph + streaming
+  api/
+    main.py                  # FastAPI gateway, SSE, metrics, cost ledger
+    schemas.py               # Pydantic v2 request/response
+tests/                       # 292 tests; 18 hit real Postgres, rest offline
 ```
 
 ## Still to come
 
 | Phase | Contents |
 |---|---|
-| E | `router/` + `api/` — LangGraph router, FastAPI, SSE, `/health`, `/metrics` |
 | F | `eval/` — 60-query labelled set, RAGAS, cost/latency benchmark → `RESULTS.md` |

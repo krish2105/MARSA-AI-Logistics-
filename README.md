@@ -43,7 +43,7 @@ decision is auditable in the interface, not buried in a log.
 | **B** | Fast-path index — chunking, pgvector, BM25, reranker | ✅ **Shipped** (see caveat) |
 | **C** | Graph construction — NetworkX supplier/port/country graph | ✅ **Shipped** |
 | **D** | ML layer — late-delivery risk, port-congestion tiering | ✅ **Shipped** |
-| E | LangGraph router + FastAPI gateway + SSE streaming | ⬜ Planned |
+| **E** | LangGraph router + FastAPI gateway + SSE streaming | ✅ **Shipped** (see caveat) |
 | F | Evaluation harness → `RESULTS.md` | ⬜ Planned |
 
 **No benchmark numbers are published yet** — the dashboard's results card is
@@ -405,6 +405,74 @@ problem.
 
 ---
 
+## Phase E: the adaptive router
+
+```
+classify ──┬─ simple_factual       ──► fast_path    ─┐
+           ├─ multi_hop_reasoning  ──► agentic_path ─┼─► finalise ─► END
+           └─ relationship_network ──► graph_path   ─┘
+```
+
+LangGraph earns its place for the **conditional edge specifically**. The whole
+project is an argument about branching on query complexity, and expressing that
+branch as a first-class graph edge — rather than an `if` buried in a handler —
+is what makes the routing decision inspectable and testable in isolation.
+
+`finalise` is shared, not duplicated per path, so all three emit the identical
+audit record (spec item 17) and Phase F can compare them without reconciliation.
+
+### The gateway
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /query` | Route and return the full audit record |
+| `POST /query/stream` | Same, as SSE — `classified` → `step`* → `sources` → `answer` → `audit` |
+| `GET /health` | Readiness plus what the router can actually reach |
+| `GET /metrics` | Prometheus |
+| `GET /cost` | Running estimated-cost counter |
+
+`classified` is emitted **first, by design**. Showing *why* a path was chosen
+before showing what it found is the demonstration; reversing it turns the
+router back into a chat box.
+
+Security baseline: CORS allowlist (never `*`), slowapi per-IP rate limiting,
+Pydantic v2 on every input with a bounded query length — an unbounded string is
+a DoS vector against a per-token-billed classifier.
+
+### Cost is priced even though the free tier bills $0
+
+Groq, Gemini and Cerebras all have free tiers. Every call is nonetheless priced
+at published per-token rates, because a cost counter that reads `$0.00000`
+forever makes "we route to the cheapest path that works" untestable. Pricing a
+free call at its published rate turns the slogan into a number you can check.
+
+### Phase E caveat
+
+`api.groq.com` and `api.cerebras.ai` are blocked by network policy here, and no
+API key is configured — so **the spec's few-shot LLM classifier has not run**.
+A deterministic heuristic classifier stands in.
+
+It is not a substitute and does not pretend to be. It reports `is_llm: false`,
+every audit record from a heuristic run carries a `classifier_not_llm` warning,
+`/health` says so in plain text, and Phase F must report its accuracy
+separately rather than folding it in. Set `GEMINI_API_KEY` — that endpoint *is*
+reachable from here — and the real classifier takes over with no code change.
+
+### A bug worth knowing about
+
+**The SSE client connected, got HTTP 200, and delivered nothing.** `sse-starlette`
+terminates lines with `\r\n`; my parser split frames on `\n\n` and so never found
+a boundary. The SSE spec permits `\r\n`, `\n` *or* a bare `\r`, and a parser that
+handles only one fails silently rather than loudly — the worst failure mode
+available. Line endings are now normalised before parsing.
+
+Also fixed: the heuristic classifier reported **85% confidence on gibberish**,
+because a short-query prior always fired and made the "nothing matched" branch
+unreachable. Priors now break ties without inflating confidence. A Route Badge
+that claims certainty it does not have is a decoration, not an audit surface.
+
+---
+
 ## Running it
 
 ### Frontend
@@ -422,7 +490,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                     # 240 tests; pgvector tests skip without a DSN
+pytest                     # 292 tests; pgvector tests skip without a DSN
 ruff check src tests
 
 marsa-ingest fixtures      # synthetic corpora, no network
@@ -444,6 +512,11 @@ marsa-graph node port:AEJEA
 marsa-ml train             # LogReg vs XGBoost vs LightGBM, temporal split
 marsa-ml congestion        # port congestion tiers from LPI + CPPI
 marsa-ml card              # model card: features, exclusions, limitations
+
+# Phase E — router + gateway
+uvicorn marsa.api.main:app --reload    # http://localhost:8000/docs
+curl -X POST localhost:8000/query -H 'Content-Type: application/json' \
+  -d '{"query":"Which suppliers are exposed if Jebel Ali congestion worsens?"}'
 
 # Run the pgvector integration tests against a real database:
 #   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=marsa \
@@ -480,7 +553,7 @@ next-themes · Motion v13 · lucide-react
 
 **Backend** — Python 3.11 · Pydantic v2 · httpx + tenacity · pandas ·
 pgvector · rank-bm25 · numpy · networkx · scikit-learn · XGBoost ·
-LightGBM · typer. Optional `[ml]` extra adds
+LightGBM · LangGraph · LiteLLM · FastAPI · typer. Optional `[ml]` extra adds
 sentence-transformers for MiniLM and the cross-encoder.
 
 FastAPI + LangGraph land in Phase E — see `backend/README.md`.

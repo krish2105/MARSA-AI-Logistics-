@@ -103,3 +103,24 @@ jobs:
           marsa-graph build
           marsa-graph stats
           marsa-graph query "Which suppliers are exposed if Jebel Ali congestion worsens?"
+
+      # Route one query down each of the three paths through the real
+      # LangGraph router, and confirm the API boots.
+      - name: Router smoke test
+        env:
+          DATABASE_URL: ${{ env.MARSA_TEST_DSN }}
+        run: |
+          python - <<'EOF'
+          from marsa.router.graph import Router
+          router = Router("heuristic")
+          expected = {
+              "What HTS code applies to lithium-ion power banks?": "fast",
+              "Which of our shipments are exposed if the tariff on HS 8541 takes effect?": "agentic",
+              "Which suppliers are exposed if Jebel Ali congestion worsens?": "graph",
+          }
+          for query, want in expected.items():
+              audit = router.run(query)
+              assert audit.path == want, f"{query!r} routed to {audit.path}, expected {want}"
+              print(f"OK {audit.path:8s} {audit.latency_ms:7.1f}ms  {query[:50]}")
+          EOF
+          python -c "from marsa.api.main import app; print('API imports OK:', app.title)"

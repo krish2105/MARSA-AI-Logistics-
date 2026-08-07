@@ -65,6 +65,20 @@ class Settings(BaseSettings):
     embedding_backend: str = "auto"
     rerank_backend: str = "auto"
 
+    # ─── Router + API (Phase E) ─────────────────────────────────────────────
+    # LLM providers for the complexity classifier. All three have free tiers;
+    # `auto` prefers whichever is configured, in the order Groq → Gemini →
+    # Cerebras, and degrades to a heuristic classifier when none is.
+    groq_api_key: str | None = None
+    gemini_api_key: str | None = None
+    cerebras_api_key: str | None = None
+    classifier_backend: str = "auto"
+
+    # CORS is an allowlist, never "*" — the gateway is public and the browser
+    # is its only legitimate caller.
+    cors_allowed_origins: str = "http://localhost:3000"
+    rate_limit_per_minute: int = 60
+
     # Kaggle needs credentials; DataCo cannot be fetched anonymously.
     kaggle_username: str | None = None
     kaggle_key: str | None = None
