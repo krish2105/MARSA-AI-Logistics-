@@ -161,12 +161,37 @@ start instead — a failed deploy you can see beats a working one that lies.
 ### 3. Frontend — Vercel
 
 1. <https://vercel.com/new> → import this repo.
-2. **Root directory: `frontend`.** Vercel defaults to the repo root and the
-   build will fail if you leave it.
+2. **Set Root Directory to `frontend`.** This is the recommended setup. If you
+   leave it at the repo root the deploy still works — the root `vercel.json`
+   builds the frontend workspace — but Root Directory is the cleaner path and
+   makes the build logs much easier to read.
 3. Environment variable:
    `NEXT_PUBLIC_API_BASE_URL = https://<your-service>.onrender.com`
    — no trailing slash.
 4. Deploy.
+
+#### If the Vercel build fails
+
+**"No Next.js version detected"** — Vercel is building from the repo root and
+did not find a `package.json` there. There genuinely isn't one; this is a
+monorepo. Either set Root Directory to `frontend`, or confirm the root
+`vercel.json` is present on the branch you are deploying (it supplies
+`installCommand`, `buildCommand` and `outputDirectory` for exactly this case).
+
+**"Invalid vercel.json — should NOT have additional property …"** — Vercel
+validates `vercel.json` against a strict schema and rejects any key it does not
+recognise, including comment keys. Only documented properties belong in that
+file; explanations go in this document instead.
+
+**The build succeeds but the deployment 404s or serves an unstyled page** —
+check that `output: "standalone"` is not being applied. `next.config.ts` gates
+it on `process.env.VERCEL`, because standalone is for the Docker image and
+Vercel builds through its own Build Output API. If you remove that gate, Vercel
+emits an artifact nothing serves.
+
+**Environment variable changes appear to do nothing** — `NEXT_PUBLIC_*` is
+inlined at build time. Changing it in the dashboard requires a redeploy before
+it takes effect. This is the single most common confusion in this project.
 
 ### 4. Close the loop
 

@@ -6,6 +6,14 @@
 
 *Not all questions deserve the same amount of computation.*
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkrish2105%2FMARSA-AI-Logistics-&root-directory=frontend&env=NEXT_PUBLIC_API_BASE_URL&envDescription=Base%20URL%20of%20the%20FastAPI%20gateway&envLink=https%3A%2F%2Fgithub.com%2Fkrish2105%2FMARSA-AI-Logistics-%2Fblob%2Fmain%2FDEPLOY.md&project-name=marsa-ai&repository-name=marsa-ai)
+
+**Live demo:** _not yet published — see [DEPLOY.md](DEPLOY.md)._
+
+The button deploys the frontend only. Without a gateway URL it runs in fixture
+mode and says so on screen; [DEPLOY.md](DEPLOY.md) covers the gateway and
+database.
+
 </div>
 
 ---
