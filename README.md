@@ -39,17 +39,34 @@ decision is auditable in the interface, not buried in a log.
 | Phase | Scope | Status |
 |---|---|---|
 | **1** | Design system, app shell, theme system, Route Badge (mock stream) | ✅ **Shipped** |
-| A | Data ingestion — CROSS, Comtrade, DataCo, World Bank LPI | ⬜ Planned |
+| **A** | Data ingestion — CROSS, Comtrade, DataCo, World Bank LPI | ✅ **Shipped** (see caveat) |
 | B | Fast-path index — chunking, pgvector, BM25, reranker | ⬜ Planned |
 | C | Graph construction — NetworkX supplier/port/country graph | ⬜ Planned |
 | D | ML layer — late-delivery risk, port-congestion tiering | ⬜ Planned |
 | E | LangGraph router + FastAPI gateway + SSE streaming | ⬜ Planned |
 | F | Evaluation harness → `RESULTS.md` | ⬜ Planned |
 
-Phase 1 runs entirely on local fixtures. **No benchmark numbers are published
-yet** — the dashboard's results card is deliberately empty rather than filled
-with invented figures, because the whole thesis depends on those numbers being
-measured.
+**No benchmark numbers are published yet** — the dashboard's results card is
+deliberately empty rather than filled with invented figures, because the whole
+thesis depends on those numbers being measured.
+
+### Phase A caveat, stated plainly
+
+The four ingestors are written, tested and runnable, but **they have not been
+run against the live sources**, because outbound access to `rulings.cbp.gov`,
+`comtradeapi.un.org`, `api.worldbank.org` and `kaggle.com` is blocked by
+network policy in the build environment. Seeded synthetic fixtures stand in so
+Phases B–F are not blocked.
+
+Every synthetic record is marked `origin=SYNTHETIC` in its provenance, in the
+manifest, in `marsa-ingest status`, and in the `/data` page of the UI. Run the
+ingestors anywhere with normal egress and the fixtures are replaced by real
+data with no code change.
+
+The Comtrade client's contract *was* verified — read out of the official
+`comtradeapicall` package source rather than guessed. The CROSS client could
+not be, and says so: `marsa-ingest probe-cross` exists to confirm the shape in
+one command before committing to a long scrape.
 
 ---
 
@@ -145,12 +162,76 @@ inspection:
 
 ---
 
+---
+
+## Phase A: data ingestion
+
+Four corpora, four different access stories — documented rather than smoothed
+over:
+
+| Corpus | Source | Auth | Honest constraint |
+|---|---|---|---|
+| CBP CROSS rulings | `rulings.cbp.gov` | none | **Undocumented API.** Client accepts multiple key spellings and fails loudly on a shape change |
+| UN Comtrade | `comtradeapi.un.org` | none | Free tier caps a response at 500 records; this is a *sampled* 288-request grid, not a mirror |
+| DataCo | Kaggle | **required** | Cannot be fetched anonymously — no unattended path exists |
+| World Bank LPI 2.0 | `api.worldbank.org` | none | CPPI ships as a report annex, not an API, so it loads from a local CSV |
+
+Everything shares one HTTP layer: token-bucket rate limiting, exponential
+backoff with jitter, `Retry-After` honoured, an honest `User-Agent`, and an
+on-disk cache that makes a multi-thousand-request scrape resumable. 4xx is
+deliberately *not* retried — that means our request is wrong, and hammering a
+public service five times to learn the same thing is rude.
+
+Every corpus is written with a provenance manifest recording origin, record
+count, upstream request count, content hash, and **why it is a subset**. Those
+manifests are rendered at `/data` in the UI, because a promise about what you
+pulled is only worth something if it is checkable.
+
+### Two bugs the work surfaced
+
+**The Comtrade parameter casing.** The preview endpoint takes `reportercode`
+(lowercase `c`) while every other parameter is camelCase. Sending `reporterCode`
+is silently ignored and returns data for *all* reporters — a wrong result that
+looks like a working one. This was found by reading the official client's source
+instead of trusting prose docs, and there is a test asserting the wire parameter.
+
+**An HTS regex that truncated every 10-digit code.** `\d{4}\.\d{2}(?:\.\d{2}){0,2}`
+matches only `.00` of `8507.60.0020`, fails the trailing word boundary, then
+silently backtracks to the 6-digit `8507.60`. Caught by a test asserting the
+full code, not by reading the pattern.
+
+---
+
 ## Running it
+
+### Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev          # http://localhost:3000
+```
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+pytest                     # 45 tests, fully offline (respx-mocked)
+ruff check src tests
+
+marsa-ingest fixtures      # synthetic corpora, no network
+marsa-ingest status        # what's on disk, and is it real?
+marsa-ingest export-report # publish manifests to the /data page
+
+# Where egress is permitted:
+marsa-ingest probe-cross   # verify the CROSS contract FIRST
+marsa-ingest cross
+marsa-ingest comtrade
+marsa-ingest worldbank
+marsa-ingest dataco --download   # needs KAGGLE_USERNAME / KAGGLE_KEY
 ```
 
 ```bash

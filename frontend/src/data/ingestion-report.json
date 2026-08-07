@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-08-07T08:59:06.590744+00:00",
+  "anySynthetic": true,
+  "totalRecords": 5736,
+  "corpora": [
+    {
+      "name": "comtrade_flows",
+      "source": "un_comtrade",
+      "origin": "synthetic",
+      "recordCount": 288,
+      "requestCount": 0,
+      "cacheHits": 0,
+      "completedAt": "2026-08-07T08:59:05.755188+00:00",
+      "durationSeconds": 0.042,
+      "subsetRationale": null,
+      "warnings": [
+        "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
+      ],
+      "sha256": "1408e9783d1b21d1",
+      "parameters": {
+        "seed": 42
+      }
+    },
+    {
+      "name": "cross_rulings",
+      "source": "cbp_cross_rulings",
+      "origin": "synthetic",
+      "recordCount": 400,
+      "requestCount": 0,
+      "cacheHits": 0,
+      "completedAt": "2026-08-07T08:59:05.734621+00:00",
+      "durationSeconds": 0.021,
+      "subsetRationale": null,
+      "warnings": [
+        "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
+      ],
+      "sha256": "10f5ea86a43901e1",
+      "parameters": {
+        "count": 400,
+        "seed": 42
+      }
+    },
+    {
+      "name": "dataco_orders",
+      "source": "dataco_supply_chain",
+      "origin": "synthetic",
+      "recordCount": 5000,
+      "requestCount": 0,
+      "cacheHits": 0,
+      "completedAt": "2026-08-07T08:59:05.979436+00:00",
+      "durationSeconds": 0.266,
+      "subsetRationale": null,
+      "warnings": [
+        "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
+      ],
+      "sha256": "e7a32eae8ea81bbe",
+      "parameters": {
+        "count": 5000,
+        "seed": 42
+      }
+    },
+    {
+      "name": "worldbank_lpi",
+      "source": "worldbank_lpi_cppi",
+      "origin": "synthetic",
+      "recordCount": 36,
+      "requestCount": 0,
+      "cacheHits": 0,
+      "completedAt": "2026-08-07T08:59:05.981652+00:00",
+      "durationSeconds": 0.268,
+      "subsetRationale": null,
+      "warnings": [
+        "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
+      ],
+      "sha256": "90e65540059508af",
+      "parameters": {
+        "seed": 42
+      }
+    },
+    {
+      "name": "worldbank_ports",
+      "source": "worldbank_lpi_cppi",
+      "origin": "synthetic",
+      "recordCount": 12,
+      "requestCount": 0,
+      "cacheHits": 0,
+      "completedAt": "2026-08-07T08:59:05.982792+00:00",
+      "durationSeconds": 0.269,
+      "subsetRationale": null,
+      "warnings": [
+        "SYNTHETIC DATA \u2014 not valid for any reported benchmark result."
+      ],
+      "sha256": "02e73a32268ef68c",
+      "parameters": {
+        "seed": 42
+      }
+    }
+  ]
+}

@@ -40,8 +40,34 @@ jobs:
       - name: Build
         run: npm run build
 
-  # Added in Phase E, once there is a backend to test.
-  # backend:
-  #   name: Backend — ruff, mypy, pytest
-  #   runs-on: ubuntu-latest
-  #   ...
+  backend:
+    name: Backend — ruff, pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check src tests
+
+      # The suite is fully offline — every upstream is respx-mocked — so CI
+      # never depends on a public API being reachable or in a good mood.
+      - name: Test
+        run: pytest
+
+      - name: Fixture pipeline smoke test
+        run: |
+          marsa-ingest fixtures --rulings 50 --orders 200
+          marsa-ingest status
