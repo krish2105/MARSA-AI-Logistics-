@@ -6,6 +6,7 @@ const NAV = [
   { href: "/", label: "Copilot" },
   { href: "/data", label: "Data provenance" },
   { href: "/regulatory", label: "Instruments" },
+  { href: "/screening", label: "Screening" },
   { href: "/theme", label: "Design tokens" },
 ];
 

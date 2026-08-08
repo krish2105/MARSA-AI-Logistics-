@@ -165,6 +165,44 @@ jobs:
           print("OK G3: exact arithmetic, cap on the total, refusal not zero")
           EOF
 
+      # Gate G5: recall on supplier-name variants, and the rule that no finding
+      # is a clearance. A false positive costs someone ten minutes; a false
+      # negative costs a detained container and a 30-day evidentiary burden.
+      - name: Phase I — screening never clears
+        run: |
+          marsa-screen suppliers "SUNRISE TEXTILE MFG" --hts 7208.10.00 || true
+          python - <<'EOF'
+          from datetime import date
+          from marsa.regulatory import fixtures as fx
+          from marsa.regulatory.store import InstrumentStore
+          from marsa.screening.engine import Finding, screen
+          from marsa.screening.matcher import HIT, similarity
+
+          store = InstrumentStore()
+          store.extend(fx.generate_instruments())
+          listed = "Sunrise Textile Manufacturing Co., Ltd."
+
+          # G5 recall: every variant of a listed name must be caught.
+          variants = [
+              "SUNRISE TEXTILE MFG",
+              "Sunrise Textile Manufacturing",
+              "sunrise textile manufacturing co ltd",
+              "Textile Manufacturing, Sunrise Co.",
+          ]
+          caught = sum(1 for v in variants if similarity(v, listed) >= HIT)
+          assert caught == len(variants), f"recall {caught}/{len(variants)}"
+
+          # And the negatives that must NOT match, or the list becomes noise.
+          for other in ("Sunset Textile Manufacturing Co., Ltd.", "Acme Widgets Inc"):
+              assert similarity(other, listed) < HIT, other
+
+          # No finding is a clearance.
+          report = screen(store, suppliers=["Acme Widgets Inc"], on=date(2026, 9, 1))
+          assert report.suppliers[0].finding is Finding.NO_EVIDENCE_FOUND
+          assert "not a clearance" in report.disclaimer
+          print("OK G5: recall 4/4, hard negatives rejected, nothing cleared")
+          EOF
+
       # The labelled set is hand-written, so it is the part most likely to
       # silently drift out of balance or pick up a duplicate — either of which
       # would quietly corrupt the accuracy figure.

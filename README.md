@@ -57,7 +57,8 @@ decision is auditable in the interface, not buried in a log.
 | **Deploy** | Compose stack, production images, Vercel + Render + Neon | ✅ **Shipped** — see [DEPLOY.md](DEPLOY.md) |
 | **G** | Regulatory Knowledge Layer — point-in-time instruments | ✅ **Shipped** (G1 NOT_EVALUATED — sources unreachable) |
 | **H** | Duty stack engine + fourth `compute` route (no LLM) | ✅ **Shipped** — G3 exact, G4 by construction |
-| **I–K** | Screening, classification, scenario graph | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
+| **I** | UFLPA / CBAM screening — three-valued, never clears | ✅ **Shipped** — G5 recall 4/4 |
+| **J–K** | Classification with abstention, scenario graph | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
 
 **`RESULTS.md` is stamped PROVISIONAL, and that is a deliberate outcome rather
 than unfinished work.** The harness measures what it can measure and *refuses
@@ -779,7 +780,7 @@ backend/src/marsa/
     quality.py              #     RAGAS, split by what needs a judge
     benchmark.py            #     every query down every path, cold/warm split
     report.py               #     RESULTS.md + the publication gate
-backend/tests/              # 425 tests
+backend/tests/              # 455 tests
 ```
 
 ---

@@ -97,6 +97,30 @@ assert not missing.answered and missing.total_amount is None
 print("OK G3: exact arithmetic, cap on the total, refusal not zero")
 EOF
 
+step "Phase I — screening never clears"
+python - <<'EOF'
+from datetime import date
+
+from marsa.regulatory import fixtures as fx
+from marsa.regulatory.store import InstrumentStore
+from marsa.screening.engine import Finding, screen
+from marsa.screening.matcher import HIT, similarity
+
+store = InstrumentStore()
+store.extend(fx.generate_instruments())
+listed = "Sunrise Textile Manufacturing Co., Ltd."
+variants = ["SUNRISE TEXTILE MFG", "Sunrise Textile Manufacturing",
+            "sunrise textile manufacturing co ltd", "Textile Manufacturing, Sunrise Co."]
+caught = sum(1 for v in variants if similarity(v, listed) >= HIT)
+assert caught == len(variants), f"recall {caught}/{len(variants)}"
+for other in ("Sunset Textile Manufacturing Co., Ltd.", "Acme Widgets Inc"):
+    assert similarity(other, listed) < HIT, other
+report = screen(store, suppliers=["Acme Widgets Inc"], on=date(2026, 9, 1))
+assert report.suppliers[0].finding is Finding.NO_EVIDENCE_FOUND
+assert "not a clearance" in report.disclaimer
+print("OK G5: recall 4/4, hard negatives rejected, nothing cleared")
+EOF
+
 step "Validate the labelled routing set"
 marsa-eval dataset
 

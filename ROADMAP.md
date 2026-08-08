@@ -216,6 +216,10 @@ retrieval, and 95% is a failing grade.
 
 ## 5. Phase I — Screening (your top-ranked wedge)
 
+> **Shipped.** G5 passes: 4/4 recall on supplier-name variants with the hard
+> negatives rejected, enforced in CI. Output is three-valued and none of the
+> three is a clearance.
+
 Given a supplier list, screen against the UFLPA Entity List and CBAM goods
 scope, with provenance on every hit.
 

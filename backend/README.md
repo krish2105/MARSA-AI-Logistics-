@@ -11,7 +11,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                    # 425 tests
+pytest                    # 455 tests
 ruff check src tests
 ./scripts/ci-local.sh     # everything CI runs, with CI's parameters
 
@@ -272,5 +272,5 @@ src/marsa/
     benchmark.py             # every query down every path; cold/warm separated
     report.py                # RESULTS.md + the publication gate
     cli.py                   # marsa-eval
-tests/                       # 425 tests; 18 hit real Postgres, rest offline
+tests/                       # 455 tests; 18 hit real Postgres, rest offline
 ```

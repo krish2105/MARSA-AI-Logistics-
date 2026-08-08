@@ -1,0 +1,142 @@
+{
+  "on": "2026-09-01",
+  "suppliers": [
+    {
+      "supplier": "Sunrise Textile Manufacturing Co., Ltd.",
+      "finding": "hit",
+      "bestScore": 1.0,
+      "matches": [
+        {
+          "query": "Sunrise Textile Manufacturing Co., Ltd.",
+          "listedName": "Sunrise Textile Manufacturing Co., Ltd.",
+          "score": 1.0,
+          "normalisedQuery": "sunrise textile",
+          "normalisedListed": "sunrise textile",
+          "sharedTokens": [
+            "sunrise",
+            "textile"
+          ],
+          "isHit": true
+        }
+      ],
+      "instrumentIds": [
+        "UFLPA-8db681b63ea1"
+      ],
+      "notes": []
+    },
+    {
+      "supplier": "SUNRISE TEXTILE MFG",
+      "finding": "hit",
+      "bestScore": 1.0,
+      "matches": [
+        {
+          "query": "SUNRISE TEXTILE MFG",
+          "listedName": "Sunrise Textile Manufacturing Co., Ltd.",
+          "score": 1.0,
+          "normalisedQuery": "sunrise textile",
+          "normalisedListed": "sunrise textile",
+          "sharedTokens": [
+            "sunrise",
+            "textile"
+          ],
+          "isHit": true
+        }
+      ],
+      "instrumentIds": [
+        "UFLPA-8db681b63ea1"
+      ],
+      "notes": []
+    },
+    {
+      "supplier": "Northern Silica Materials",
+      "finding": "hit",
+      "bestScore": 1.0,
+      "matches": [
+        {
+          "query": "Northern Silica Materials",
+          "listedName": "Northern Silica Materials Group",
+          "score": 1.0,
+          "normalisedQuery": "materials northern silica",
+          "normalisedListed": "materials northern silica",
+          "sharedTokens": [
+            "materials",
+            "northern",
+            "silica"
+          ],
+          "isHit": true
+        }
+      ],
+      "instrumentIds": [
+        "UFLPA-f1837271faf3"
+      ],
+      "notes": []
+    },
+    {
+      "supplier": "Southern Silica Materials Group",
+      "finding": "possible",
+      "bestScore": 0.6667,
+      "matches": [
+        {
+          "query": "Southern Silica Materials Group",
+          "listedName": "Northern Silica Materials Group",
+          "score": 0.6667,
+          "normalisedQuery": "materials silica southern",
+          "normalisedListed": "materials northern silica",
+          "sharedTokens": [
+            "materials",
+            "silica"
+          ],
+          "isHit": false
+        }
+      ],
+      "instrumentIds": [
+        "UFLPA-f1837271faf3"
+      ],
+      "notes": [
+        "Closest listed name is 'Northern Silica Materials Group' at 67% on shared tokens materials, silica. A human decides this one."
+      ]
+    },
+    {
+      "supplier": "Jebel Ali Freight Forwarding LLC",
+      "finding": "no_evidence_found",
+      "bestScore": 0.0,
+      "matches": [],
+      "instrumentIds": [],
+      "notes": [
+        "Nothing in this list version matched. That is not a clearance."
+      ]
+    }
+  ],
+  "goods": [
+    {
+      "hts": "7208.10.00",
+      "finding": "hit",
+      "inScope": [
+        "CBAM-iron_and_steel"
+      ],
+      "notes": [
+        "CBAM-iron_and_steel: CBAM reporting and certificate obligations apply on EU import. Since 1 January 2026 a missing or wrong CBAM code causes the declaration to be rejected outright."
+      ]
+    },
+    {
+      "hts": "8507.60.00",
+      "finding": "no_evidence_found",
+      "inScope": [],
+      "notes": []
+    }
+  ],
+  "listVersion": "2026-08-08T08:38:53.604838+00:00",
+  "listAgeDays": 0.03,
+  "listIsStale": false,
+  "entitiesChecked": 3,
+  "anySynthetic": true,
+  "counts": {
+    "hit": 3,
+    "possible": 1,
+    "noEvidenceFound": 1
+  },
+  "warnings": [
+    "Listings are SYNTHETIC. This exercises the matcher; it screens against nothing real."
+  ],
+  "disclaimer": "Screened against 3 listed entities as held on 2026-08-08T08:38:53.604838+00:00. 'No evidence found' means nothing in THIS list version matched \u2014 it is not a clearance, and it is not a statement about the supplier."
+}
