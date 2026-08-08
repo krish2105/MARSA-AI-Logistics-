@@ -1,0 +1,435 @@
+{
+  "generatedAt": "2026-08-08T02:56:24.475498+00:00",
+  "staleness": {
+    "instruments": 10,
+    "oldestRetrievedAt": "2026-08-08T02:55:09.147561+00:00",
+    "ageDays": 0.0,
+    "staleAfterDays": 14,
+    "isStale": false,
+    "origins": {
+      "synthetic": 10
+    },
+    "anySynthetic": true,
+    "note": "SYNTHETIC instruments present \u2014 no figure derived from this set may be published."
+  },
+  "instruments": [
+    {
+      "id": "FR-2026-02-232-STEEL",
+      "issuer": "ustr",
+      "kind": "tariff",
+      "programme": "section_232",
+      "title": "Section 232 \u2014 steel, aluminium and copper (February 2026)",
+      "scope": {
+        "hts_prefixes": [
+          "72",
+          "73",
+          "76"
+        ],
+        "origin_countries": [],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "ad_valorem",
+        "rate_percent": 25.0,
+        "additive": true,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-02-01",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/FR-2026-02-232-STEEL",
+      "retrieved_at": "2026-08-08T02:55:09.147561Z",
+      "text_hash": "00d3cd48e267f414e769f3f1ba98d055c726e9658a3a9aa0d3aad92e1085a28e",
+      "origin": "synthetic"
+    },
+    {
+      "id": "FR-2026-06-232-STEEL",
+      "issuer": "ustr",
+      "kind": "tariff",
+      "programme": "section_232",
+      "title": "Section 232 \u2014 steel, aluminium and copper, as modified (June 2026)",
+      "scope": {
+        "hts_prefixes": [
+          "72",
+          "73",
+          "76"
+        ],
+        "origin_countries": [],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "ad_valorem",
+        "rate_percent": 50.0,
+        "additive": true,
+        "cap_percent": 15.0,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this. Capped at 15% total duty for EU, GB, JP, KR et al."
+      },
+      "effective_from": "2026-06-08",
+      "effective_to": "2027-12-31",
+      "date_basis": "explicit",
+      "supersedes": [
+        "FR-2026-02-232-STEEL"
+      ],
+      "source_url": "https://example.invalid/synthetic/FR-2026-06-232-STEEL",
+      "retrieved_at": "2026-08-08T02:55:09.147671Z",
+      "text_hash": "7ad847652bca44f00c2f201446b926a187d5fa74fb8934b602977186d62705cb",
+      "origin": "synthetic"
+    },
+    {
+      "id": "FR-2026-301-CN",
+      "issuer": "ustr",
+      "kind": "tariff",
+      "programme": "section_301",
+      "title": "Section 301 \u2014 China",
+      "scope": {
+        "hts_prefixes": [
+          "72",
+          "73",
+          "76",
+          "85"
+        ],
+        "origin_countries": [
+          "CN"
+        ],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "ad_valorem",
+        "rate_percent": 25.0,
+        "additive": true,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/FR-2026-301-CN",
+      "retrieved_at": "2026-08-08T02:55:09.147692Z",
+      "text_hash": "bcb47096f12e4f30a9e3f24e24a2cbb0b6bb9f88765c2a273fddb020b4a3d7f2",
+      "origin": "synthetic"
+    },
+    {
+      "id": "FR-2026-IEEPA-RECIP",
+      "issuer": "ustr",
+      "kind": "tariff",
+      "programme": "ieepa",
+      "title": "IEEPA reciprocal tariff",
+      "scope": {
+        "hts_prefixes": [],
+        "origin_countries": [
+          "BR",
+          "IN",
+          "VN",
+          "TR"
+        ],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "ad_valorem",
+        "rate_percent": 10.0,
+        "additive": true,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-04-15",
+      "effective_to": null,
+      "date_basis": "inferred_from_publication",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/FR-2026-IEEPA-RECIP",
+      "retrieved_at": "2026-08-08T02:55:09.147721Z",
+      "text_hash": "be9de6d8b8018304693918454f94ab77c645311d3485b48e4508fee03ccdf58e",
+      "origin": "synthetic"
+    },
+    {
+      "id": "HTS-73269086",
+      "issuer": "usitc",
+      "kind": "base_rate",
+      "programme": "mfn",
+      "title": "Other articles of iron or steel",
+      "scope": {
+        "hts_prefixes": [
+          "73269086"
+        ],
+        "origin_countries": [],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "ad_valorem",
+        "rate_percent": 2.9,
+        "additive": false,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/HTS-73269086",
+      "retrieved_at": "2026-08-08T02:55:09.147733Z",
+      "text_hash": "e01b50009ffa242af51d5049a57794f51aa73af539db2d533b2b974fdaac1526",
+      "origin": "synthetic"
+    },
+    {
+      "id": "HTS-85076000",
+      "issuer": "usitc",
+      "kind": "base_rate",
+      "programme": "mfn",
+      "title": "Lithium-ion accumulators",
+      "scope": {
+        "hts_prefixes": [
+          "85076000"
+        ],
+        "origin_countries": [],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "ad_valorem",
+        "rate_percent": 3.4,
+        "additive": false,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/HTS-85076000",
+      "retrieved_at": "2026-08-08T02:55:09.147743Z",
+      "text_hash": "a4c77cf024d695dec08e70201c5ab4e9afeda784cfe9989c4ad28956894b6ce5",
+      "origin": "synthetic"
+    },
+    {
+      "id": "CBAM-iron_and_steel",
+      "issuer": "eu_commission",
+      "kind": "goods_scope",
+      "programme": "cbam",
+      "title": "CBAM Annex I \u2014 iron and steel",
+      "scope": {
+        "hts_prefixes": [
+          "72",
+          "7301",
+          "7302"
+        ],
+        "origin_countries": [],
+        "entity_names": []
+      },
+      "effect": {
+        "kind": "certificate_required",
+        "rate_percent": null,
+        "additive": false,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this. \u20ac100/tonne CO2e penalty for uncovered emissions."
+      },
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/CBAM-iron_and_steel",
+      "retrieved_at": "2026-08-08T02:55:09.147765Z",
+      "text_hash": "e81603501daa67a6f2cbbaacc96933ed53979f8aa5bbd74e6a8c49dc80625473",
+      "origin": "synthetic"
+    },
+    {
+      "id": "UFLPA-8db681b63ea1",
+      "issuer": "dhs",
+      "kind": "entity_listing",
+      "programme": "uflpa",
+      "title": "Sunrise Textile Manufacturing Co., Ltd.",
+      "scope": {
+        "hts_prefixes": [],
+        "origin_countries": [],
+        "entity_names": [
+          "Sunrise Textile Manufacturing Co., Ltd."
+        ]
+      },
+      "effect": {
+        "kind": "prohibition",
+        "rate_percent": null,
+        "additive": false,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-03-12",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/UFLPA-8db681b63ea1",
+      "retrieved_at": "2026-08-08T02:55:09.147783Z",
+      "text_hash": "e1887047c2140dfb58ac22843af9d0e910d5f66fc36a73f2de2ad51a31b560b5",
+      "origin": "synthetic"
+    },
+    {
+      "id": "UFLPA-f1837271faf3",
+      "issuer": "dhs",
+      "kind": "entity_listing",
+      "programme": "uflpa",
+      "title": "Northern Silica Materials Group",
+      "scope": {
+        "hts_prefixes": [],
+        "origin_countries": [],
+        "entity_names": [
+          "Northern Silica Materials Group"
+        ]
+      },
+      "effect": {
+        "kind": "prohibition",
+        "rate_percent": null,
+        "additive": false,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-08-03",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/UFLPA-f1837271faf3",
+      "retrieved_at": "2026-08-08T02:55:09.147798Z",
+      "text_hash": "f23700cdc519d916e4e39a7e1a8f1e0145031eba5ffe114e4ec72216b0b5f535",
+      "origin": "synthetic"
+    },
+    {
+      "id": "UFLPA-11057873d5de",
+      "issuer": "dhs",
+      "kind": "entity_listing",
+      "programme": "uflpa",
+      "title": "Hongyuan Photovoltaic Industries",
+      "scope": {
+        "hts_prefixes": [],
+        "origin_countries": [],
+        "entity_names": [
+          "Hongyuan Photovoltaic Industries"
+        ]
+      },
+      "effect": {
+        "kind": "prohibition",
+        "rate_percent": null,
+        "additive": false,
+        "cap_percent": null,
+        "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+      },
+      "effective_from": "2026-08-03",
+      "effective_to": null,
+      "date_basis": "explicit",
+      "supersedes": [],
+      "source_url": "https://example.invalid/synthetic/UFLPA-11057873d5de",
+      "retrieved_at": "2026-08-08T02:55:09.147807Z",
+      "text_hash": "44e1f694b61d4e3dbfaff1b661a7084d581acfd5428aee0618f0afc644906b52",
+      "origin": "synthetic"
+    }
+  ],
+  "workedExample": {
+    "query": {
+      "hts": "7326.90.86",
+      "origin": "CN",
+      "on": "2026-09-01"
+    },
+    "on": "2026-09-01",
+    "effective": [
+      {
+        "id": "FR-2026-06-232-STEEL",
+        "issuer": "ustr",
+        "kind": "tariff",
+        "programme": "section_232",
+        "title": "Section 232 \u2014 steel, aluminium and copper, as modified (June 2026)",
+        "scope": {
+          "hts_prefixes": [
+            "72",
+            "73",
+            "76"
+          ],
+          "origin_countries": [],
+          "entity_names": []
+        },
+        "effect": {
+          "kind": "ad_valorem",
+          "rate_percent": 50.0,
+          "additive": true,
+          "cap_percent": 15.0,
+          "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this. Capped at 15% total duty for EU, GB, JP, KR et al."
+        },
+        "effective_from": "2026-06-08",
+        "effective_to": "2027-12-31",
+        "date_basis": "explicit",
+        "supersedes": [
+          "FR-2026-02-232-STEEL"
+        ],
+        "source_url": "https://example.invalid/synthetic/FR-2026-06-232-STEEL",
+        "retrieved_at": "2026-08-08T02:55:09.147671Z",
+        "text_hash": "7ad847652bca44f00c2f201446b926a187d5fa74fb8934b602977186d62705cb",
+        "origin": "synthetic"
+      },
+      {
+        "id": "FR-2026-301-CN",
+        "issuer": "ustr",
+        "kind": "tariff",
+        "programme": "section_301",
+        "title": "Section 301 \u2014 China",
+        "scope": {
+          "hts_prefixes": [
+            "72",
+            "73",
+            "76",
+            "85"
+          ],
+          "origin_countries": [
+            "CN"
+          ],
+          "entity_names": []
+        },
+        "effect": {
+          "kind": "ad_valorem",
+          "rate_percent": 25.0,
+          "additive": true,
+          "cap_percent": null,
+          "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+        },
+        "effective_from": "2026-01-01",
+        "effective_to": null,
+        "date_basis": "explicit",
+        "supersedes": [],
+        "source_url": "https://example.invalid/synthetic/FR-2026-301-CN",
+        "retrieved_at": "2026-08-08T02:55:09.147692Z",
+        "text_hash": "bcb47096f12e4f30a9e3f24e24a2cbb0b6bb9f88765c2a273fddb020b4a3d7f2",
+        "origin": "synthetic"
+      },
+      {
+        "id": "HTS-73269086",
+        "issuer": "usitc",
+        "kind": "base_rate",
+        "programme": "mfn",
+        "title": "Other articles of iron or steel",
+        "scope": {
+          "hts_prefixes": [
+            "73269086"
+          ],
+          "origin_countries": [],
+          "entity_names": []
+        },
+        "effect": {
+          "kind": "ad_valorem",
+          "rate_percent": 2.9,
+          "additive": false,
+          "cap_percent": null,
+          "note": "SYNTHETIC \u2014 not a real legal instrument. Never publish a figure from this."
+        },
+        "effective_from": "2026-01-01",
+        "effective_to": null,
+        "date_basis": "explicit",
+        "supersedes": [],
+        "source_url": "https://example.invalid/synthetic/HTS-73269086",
+        "retrieved_at": "2026-08-08T02:55:09.147733Z",
+        "text_hash": "e01b50009ffa242af51d5049a57794f51aa73af539db2d533b2b974fdaac1526",
+        "origin": "synthetic"
+      }
+    ],
+    "superseded": [
+      "FR-2026-02-232-STEEL"
+    ],
+    "contradictions": [],
+    "inferredDates": [],
+    "isTrustworthy": true
+  }
+}

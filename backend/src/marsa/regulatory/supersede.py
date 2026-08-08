@@ -79,13 +79,15 @@ def effective_set(
     on: date,
     hts: str | None = None,
     origin: str | None = None,
+    entity: str | None = None,
 ) -> list[Instrument]:
     """The instruments actually operating on a date, for an entry."""
     displaced = superseded_ids(instruments, on=on)
     return [
         i
         for i in instruments
-        if i.id not in displaced and i.applies_to(hts=hts, origin=origin, on=on)
+        if i.id not in displaced
+        and i.applies_to(hts=hts, origin=origin, entity=entity, on=on)
     ]
 
 
@@ -214,9 +216,10 @@ def resolve(
     on: date,
     hts: str | None = None,
     origin: str | None = None,
+    entity: str | None = None,
 ) -> ResolutionReport:
     """Point-in-time resolution, with everything it could not settle attached."""
-    effective = effective_set(instruments, on=on, hts=hts, origin=origin)
+    effective = effective_set(instruments, on=on, hts=hts, origin=origin, entity=entity)
     return ResolutionReport(
         on=on,
         effective=effective,

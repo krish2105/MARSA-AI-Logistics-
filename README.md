@@ -54,7 +54,8 @@ decision is auditable in the interface, not buried in a log.
 | **E** | LangGraph router + FastAPI gateway + SSE streaming | ✅ **Shipped** (see caveat) |
 | **F** | Evaluation harness → `RESULTS.md` | ✅ **Shipped** (results PROVISIONAL) |
 | **Deploy** | Compose stack, production images, Vercel + Render + Neon | ✅ **Shipped** — see [DEPLOY.md](DEPLOY.md) |
-| **G–K** | Regulatory Knowledge Layer, duty stacking, screening | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
+| **G** | Regulatory Knowledge Layer — point-in-time instruments | ✅ **Shipped** (G1 NOT_EVALUATED — sources unreachable) |
+| **H–K** | Duty stacking, screening, classification, scenario graph | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
 
 **`RESULTS.md` is stamped PROVISIONAL, and that is a deliberate outcome rather
 than unfinished work.** The harness measures what it can measure and *refuses
@@ -766,7 +767,7 @@ backend/src/marsa/
     quality.py              #     RAGAS, split by what needs a judge
     benchmark.py            #     every query down every path, cold/warm split
     report.py               #     RESULTS.md + the publication gate
-backend/tests/              # 386 tests
+backend/tests/              # 390 tests
 ```
 
 ---

@@ -369,3 +369,37 @@ class TestFixtures:
         )
         assert len(report.contradictions) == 1
         assert not report.is_trustworthy
+
+
+class TestEntityScoping:
+    """An entity listing must not answer a goods question.
+
+    `Scope` treats an empty axis as unrestricted, which is right — but a
+    *populated* axis the caller gave no value for is a miss, not a pass. Without
+    that, every duty lookup returns all 187 UFLPA listings as applicable and
+    forced-labour prohibitions land in the duty stack.
+    """
+
+    def _listing(self):
+        return Instrument(
+            id="UFLPA-x", issuer=Issuer.DHS, kind=InstrumentKind.ENTITY_LISTING,
+            programme=Programme.UFLPA, scope=Scope(entity_names=["Acme Textiles Ltd"]),
+            effect=Effect(kind=EffectKind.PROHIBITION, additive=False),
+            effective_from=JUNE, retrieved_at=datetime.now(UTC), origin=Origin.SYNTHETIC,
+        )
+
+    def test_hts_query_does_not_return_entity_listings(self):
+        report = resolve([self._listing()], on=SEPT, hts="7326.90.86", origin="CN")
+        assert report.effective == []
+
+    def test_entity_query_finds_the_listing(self):
+        report = resolve([self._listing()], on=SEPT, entity="Acme Textiles Ltd")
+        assert [i.id for i in report.effective] == ["UFLPA-x"]
+
+    def test_entity_match_ignores_case_and_padding(self):
+        report = resolve([self._listing()], on=SEPT, entity="  acme textiles ltd ")
+        assert len(report.effective) == 1
+
+    def test_fixture_hts_query_returns_no_uflpa_listings(self):
+        report = resolve(fx.generate_instruments(), on=SEPT, hts="7326.90.86", origin="CN")
+        assert not [i for i in report.effective if i.programme is Programme.UFLPA]

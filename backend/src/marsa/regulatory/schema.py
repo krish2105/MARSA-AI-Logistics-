@@ -117,8 +117,23 @@ class Scope(BaseModel):
     def _normalise_country(cls, countries: list[str]) -> list[str]:
         return [c.strip().upper() for c in countries if c.strip()]
 
-    def matches(self, *, hts: str | None = None, origin: str | None = None) -> bool:
-        """Does this scope cover the given entry?"""
+    def matches(
+        self,
+        *,
+        hts: str | None = None,
+        origin: str | None = None,
+        entity: str | None = None,
+    ) -> bool:
+        """Does this scope cover the given entry?
+
+        Note the asymmetry with `is_unrestricted`. An *empty* axis is
+        unrestricted, but a *populated* axis the caller did not supply a value
+        for is a miss, not a pass. Without that, a UFLPA entity listing — whose
+        scope is a company name and nothing else — matches every duty query
+        that names only an HTS code, and a single lookup returns all 187
+        listings as applicable. That is not a cosmetic problem: it would put
+        forced-labour prohibitions into the duty stack.
+        """
         if self.hts_prefixes:
             if hts is None:
                 return False
@@ -129,6 +144,12 @@ class Scope(BaseModel):
             if origin is None:
                 return False
             if origin.strip().upper() not in self.origin_countries:
+                return False
+        if self.entity_names:
+            if entity is None:
+                return False
+            needle = entity.strip().casefold()
+            if not any(needle == name.strip().casefold() for name in self.entity_names):
                 return False
         return True
 
@@ -196,9 +217,16 @@ class Instrument(BaseModel):
         return self.effective_from <= on <= (self.effective_to or FOREVER)
 
     def applies_to(
-        self, *, hts: str | None = None, origin: str | None = None, on: date
+        self,
+        *,
+        hts: str | None = None,
+        origin: str | None = None,
+        entity: str | None = None,
+        on: date,
     ) -> bool:
-        return self.in_force_on(on) and self.scope.matches(hts=hts, origin=origin)
+        return self.in_force_on(on) and self.scope.matches(
+            hts=hts, origin=origin, entity=entity
+        )
 
     @property
     def date_is_trustworthy(self) -> bool:

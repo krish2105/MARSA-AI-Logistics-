@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+from datetime import UTC, datetime
 
 import typer
 from rich.console import Console
@@ -158,6 +159,7 @@ def asof(
     on: str = typer.Argument(..., help="Date, YYYY-MM-DD"),
     hts: str = typer.Option(None, help="HTS code, e.g. 7326.90.86"),
     origin: str = typer.Option(None, help="Origin country, e.g. CN"),
+    entity: str = typer.Option(None, help="Supplier name, for entity listings"),
 ) -> None:
     """What was in force on a date - the one question Phase G exists to answer."""
     configure(level="WARNING", human=True)
@@ -168,7 +170,7 @@ def asof(
         console.print("[yellow]No instruments. Run `marsa-reg fixtures` or `ingest`.[/]")
         raise typer.Exit(code=1)
 
-    report = store.asof(_date.fromisoformat(on), hts=hts, origin=origin)
+    report = store.asof(_date.fromisoformat(on), hts=hts, origin=origin, entity=entity)
 
     table = Table(title=f"In force on {on}", header_style="bold")
     for column in ("Instrument", "Kind", "Effect", "From", "To"):
@@ -219,6 +221,51 @@ def staleness() -> None:
             "may cite a superseded rate."
         )
         raise typer.Exit(code=1)
+
+
+
+#: Default export target. A module-level constant rather than an inline
+#: default, which ruff flags as a call evaluated at import time.
+DEFAULT_REPORT_PATH = (
+    pathlib.Path(__file__).resolve().parents[4] / "frontend/src/data/regulatory.json"
+)
+
+
+@app.command("export-report")
+def export_report(
+    out: pathlib.Path = DEFAULT_REPORT_PATH,
+    on: str = typer.Option(None, help="Resolve as-of this date (default: today)"),
+) -> None:
+    """Publish the instrument set for the /regulatory page.
+
+    Exports the set *plus* a worked point-in-time resolution, because the
+    interesting claim is not "we hold 11 instruments" — it is "here is what was
+    in force on a date, here is what it displaced, and here is what we could
+    not settle."
+    """
+    import json as _json
+    from datetime import date as _date
+
+    configure(level="WARNING", human=True)
+    store = InstrumentStore.load(_store_path())
+    as_of = _date.fromisoformat(on) if on else _date.today()
+
+    # Two resolutions: one clean, one deliberately after the June supersession,
+    # so the page can show the mechanism rather than assert it.
+    worked = store.asof(as_of, hts="7326.90.86", origin="CN")
+
+    report = {
+        "generatedAt": datetime.now(UTC).isoformat(),
+        "staleness": store.staleness(),
+        "instruments": [i.as_dict() for i in store.all()],
+        "workedExample": {
+            "query": {"hts": "7326.90.86", "origin": "CN", "on": as_of.isoformat()},
+            **worked.as_dict(),
+        },
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(_json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    console.print(f"[green]OK[/] {len(store.instruments)} instruments -> {out}")
 
 
 if __name__ == "__main__":

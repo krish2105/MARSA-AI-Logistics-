@@ -64,12 +64,13 @@ class InstrumentStore:
         *,
         hts: str | None = None,
         origin: str | None = None,
+        entity: str | None = None,
     ) -> ResolutionReport:
         """The instruments in force on a date, with what could not be resolved.
 
         This is the only query Phase G exists to answer.
         """
-        return resolve(self.all(), on=on, hts=hts, origin=origin)
+        return resolve(self.all(), on=on, hts=hts, origin=origin, entity=entity)
 
     # ── provenance ──────────────────────────────────────────────────────────
 

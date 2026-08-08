@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 const NAV = [
   { href: "/", label: "Copilot" },
   { href: "/data", label: "Data provenance" },
+  { href: "/regulatory", label: "Instruments" },
   { href: "/theme", label: "Design tokens" },
 ];
 
