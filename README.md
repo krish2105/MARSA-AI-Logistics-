@@ -54,6 +54,7 @@ decision is auditable in the interface, not buried in a log.
 | **E** | LangGraph router + FastAPI gateway + SSE streaming | ✅ **Shipped** (see caveat) |
 | **F** | Evaluation harness → `RESULTS.md` | ✅ **Shipped** (results PROVISIONAL) |
 | **Deploy** | Compose stack, production images, Vercel + Render + Neon | ✅ **Shipped** — see [DEPLOY.md](DEPLOY.md) |
+| **G–K** | Regulatory Knowledge Layer, duty stacking, screening | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
 
 **`RESULTS.md` is stamped PROVISIONAL, and that is a deliberate outcome rather
 than unfinished work.** The harness measures what it can measure and *refuses
