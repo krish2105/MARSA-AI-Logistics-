@@ -47,6 +47,9 @@ data/models/
 # repo root IS committed: it carries the gate stamp, and a report that only
 # exists on someone's laptop cannot be checked by anyone.
 data/eval/
+# Built by `marsa-reg fixtures` / `ingest` — the instrument set. Reproducible;
+# the export into frontend/src/data/ IS committed.
+data/regulatory/
 data/*.pkl
 artifacts/
 *.joblib

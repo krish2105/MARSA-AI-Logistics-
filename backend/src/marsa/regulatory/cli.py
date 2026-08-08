@@ -6,13 +6,19 @@
 from __future__ import annotations
 
 import json
+import pathlib
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from marsa.config import settings
+from marsa.ingestion.fetcher import Fetcher
 from marsa.logging import configure
+from marsa.regulatory import fixtures as fx
+from marsa.regulatory.ingest import INGESTORS
 from marsa.regulatory.probe import REQUIRED, run_gate
+from marsa.regulatory.store import InstrumentStore
 
 app = typer.Typer(add_completion=False, help="MARSA AI — regulatory knowledge layer")
 console = Console()
@@ -81,6 +87,138 @@ def probe(
     console.print(f"[bold]Action:[/] {result.action}")
 
     raise typer.Exit(code=0 if result.verdict == "PASS" else 1)
+
+
+
+def _store_path() -> pathlib.Path:
+    return settings.data_dir / "regulatory" / "instruments.json"
+
+
+@app.command()
+def fixtures(
+    contradiction: bool = typer.Option(
+        False, "--contradiction", help="Inject a pair that cannot both be right"
+    ),
+) -> None:
+    """Generate synthetic instruments so Phase G runs without the sources.
+
+    Every one carries origin=SYNTHETIC. No figure derived from them may be
+    published — the same rule as Phase A, enforced by a test.
+    """
+    configure(level="WARNING", human=True)
+    store = InstrumentStore()
+    store.extend(fx.generate_instruments(with_contradiction=contradiction))
+    store.save(_store_path())
+    console.print(f"[green]OK[/] {len(store.instruments)} synthetic instruments written")
+    console.print(
+        "[yellow]These are synthetic.[/] They exercise supersession, stacking and "
+        "caps; they cannot validate a duty figure."
+    )
+
+
+@app.command()
+def ingest(
+    source: str = typer.Option("all", help="all, or one source name"),
+    no_cache: bool = typer.Option(False, "--no-cache"),
+) -> None:
+    """Ingest real instruments. Needs outbound access to the four sources."""
+    configure(level="WARNING", human=True)
+    wanted = list(INGESTORS) if source == "all" else [source]
+    unknown = [s for s in wanted if s not in INGESTORS]
+    if unknown:
+        console.print(f"[red]unknown source(s): {unknown}[/]")
+        raise typer.Exit(code=2)
+
+    store = InstrumentStore.load(_store_path())
+    failures: list[str] = []
+    with Fetcher(
+        requests_per_second=1.0, cache_dir=settings.cache_dir, use_cache=not no_cache
+    ) as fetcher:
+        for name in wanted:
+            try:
+                found = INGESTORS[name](fetcher)
+            except Exception as exc:  # noqa: BLE001 - a dead source is a datum
+                failures.append(name)
+                console.print(f"[red]x[/] {name} - {str(exc)[:150]}")
+                continue
+            store.extend(found)
+            console.print(f"[green]OK[/] {name} - {len(found)} instruments")
+
+    store.save(_store_path())
+    if failures:
+        console.print(
+            f"\n[yellow]{len(failures)} source(s) failed.[/] The set is incomplete; "
+            "`asof` answers from what survived, which is not the same thing."
+        )
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def asof(
+    on: str = typer.Argument(..., help="Date, YYYY-MM-DD"),
+    hts: str = typer.Option(None, help="HTS code, e.g. 7326.90.86"),
+    origin: str = typer.Option(None, help="Origin country, e.g. CN"),
+) -> None:
+    """What was in force on a date - the one question Phase G exists to answer."""
+    configure(level="WARNING", human=True)
+    from datetime import date as _date
+
+    store = InstrumentStore.load(_store_path())
+    if not store.instruments:
+        console.print("[yellow]No instruments. Run `marsa-reg fixtures` or `ingest`.[/]")
+        raise typer.Exit(code=1)
+
+    report = store.asof(_date.fromisoformat(on), hts=hts, origin=origin)
+
+    table = Table(title=f"In force on {on}", header_style="bold")
+    for column in ("Instrument", "Kind", "Effect", "From", "To"):
+        table.add_column(column)
+    for i in report.effective:
+        rate = (
+            f"{i.effect.rate_percent:.1f}%" + (" (+)" if i.effect.additive else "")
+            if i.effect.rate_percent is not None
+            else i.effect.kind.value
+        )
+        table.add_row(
+            i.id, i.kind.value, rate,
+            i.effective_from.isoformat(),
+            i.effective_to.isoformat() if i.effective_to else "-",
+        )
+    console.print(table)
+
+    if report.superseded:
+        console.print(f"[dim]superseded and excluded: {', '.join(report.superseded)}[/]")
+    for c in report.contradictions:
+        console.print(
+            f"[red]contradiction:[/] {c.left} ({c.left_rate}%) vs "
+            f"{c.right} ({c.right_rate}%) - neither was chosen. {c.reason}"
+        )
+    if report.inferred_dates:
+        console.print(
+            f"[yellow]inferred effective dates:[/] {', '.join(report.inferred_dates)} "
+            "- publication is not commencement, so this window may be wrong."
+        )
+    if not report.is_trustworthy:
+        console.print(
+            "\n[yellow]This resolution cannot carry a published figure.[/] "
+            "Resolve the contradictions or confirm the dates first."
+        )
+
+
+@app.command()
+def staleness() -> None:
+    """How old the instrument set is - every answer has to disclose this."""
+    configure(level="WARNING", human=True)
+    store = InstrumentStore.load(_store_path())
+    d = store.staleness()
+    for key, value in d.items():
+        console.print(f"  {key:22s} {value}")
+    if d["isStale"]:
+        console.print(
+            "\n[yellow]Stale.[/] Section 232 changed twice in 2026; a set this old "
+            "may cite a superseded rate."
+        )
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

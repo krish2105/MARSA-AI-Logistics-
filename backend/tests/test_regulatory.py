@@ -163,3 +163,209 @@ def _fetcher():
         use_cache=False,
         max_retries=1,
     )
+
+
+# ─── Phase G core ────────────────────────────────────────────────────────────
+
+from datetime import UTC, date, datetime  # noqa: E402
+
+from marsa.ingestion.schemas import Origin  # noqa: E402
+from marsa.regulatory import fixtures as fx  # noqa: E402
+from marsa.regulatory.schema import (  # noqa: E402
+    DateBasis,
+    Effect,
+    EffectKind,
+    Instrument,
+    InstrumentKind,
+    Issuer,
+    Programme,
+    Scope,
+)
+from marsa.regulatory.store import InstrumentStore  # noqa: E402
+from marsa.regulatory.supersede import find_contradictions, resolve  # noqa: E402
+
+JUNE = date(2026, 6, 8)
+MARCH = date(2026, 3, 1)
+SEPT = date(2026, 9, 1)
+
+
+def _tariff(id, rate, programme, *, frm, to=None, supersedes=None, hts=("72", "73"),
+            origins=(), basis=DateBasis.EXPLICIT):
+    return Instrument(
+        id=id, issuer=Issuer.USTR, kind=InstrumentKind.TARIFF, programme=programme,
+        scope=Scope(hts_prefixes=list(hts), origin_countries=list(origins)),
+        effect=Effect(kind=EffectKind.AD_VALOREM, rate_percent=rate, additive=True),
+        effective_from=frm, effective_to=to, date_basis=basis,
+        supersedes=list(supersedes or []),
+        retrieved_at=datetime.now(UTC), origin=Origin.SYNTHETIC,
+    )
+
+
+class TestScope:
+    def test_hts_dots_are_presentational(self):
+        assert Scope(hts_prefixes=["7326.90"]).matches(hts="73269086")
+        assert Scope(hts_prefixes=["732690"]).matches(hts="7326.90.86")
+
+    def test_empty_axis_means_unrestricted_not_matches_nothing(self):
+        """Getting this backwards silently narrows every instrument to nothing."""
+        assert Scope(hts_prefixes=["72"]).matches(hts="7208", origin="CN")
+        assert Scope().matches(hts="anything", origin="XX")
+
+    def test_a_restricted_axis_needs_a_value_to_match(self):
+        assert not Scope(hts_prefixes=["72"]).matches(hts=None)
+        assert not Scope(origin_countries=["CN"]).matches(origin=None)
+
+
+class TestPointInTime:
+    def test_instrument_is_not_in_force_before_it_commences(self):
+        i = _tariff("a", 50.0, Programme.SECTION_232, frm=JUNE)
+        assert not i.in_force_on(MARCH)
+        assert i.in_force_on(SEPT)
+
+    def test_open_ended_window_stays_in_force(self):
+        assert _tariff("a", 25.0, Programme.SECTION_301, frm=MARCH).in_force_on(
+            date(2030, 1, 1)
+        )
+
+    def test_window_must_be_ordered(self):
+        with pytest.raises(ValueError, match="precedes"):
+            _tariff("a", 25.0, Programme.MFN, frm=JUNE, to=MARCH)
+
+
+class TestSupersession:
+    def test_superseded_instrument_drops_out_even_though_its_window_is_open(self):
+        """The February 232's own window never closes. It stops applying only
+        because June replaces it — a resolver checking dates alone double-counts."""
+        old = _tariff("old", 25.0, Programme.SECTION_232, frm=date(2026, 2, 1))
+        new = _tariff("new", 50.0, Programme.SECTION_232, frm=JUNE, supersedes=["old"])
+        report = resolve([old, new], on=SEPT, hts="7326")
+        ids = {i.id for i in report.effective}
+        assert ids == {"new"}
+        assert "old" in report.superseded
+        assert old.in_force_on(SEPT), "the old window is still open; that is the point"
+
+    def test_a_future_instrument_does_not_void_the_past(self):
+        """Answering for March must not change because a June rule was ingested."""
+        old = _tariff("old", 25.0, Programme.SECTION_232, frm=date(2026, 2, 1))
+        new = _tariff("new", 50.0, Programme.SECTION_232, frm=JUNE, supersedes=["old"])
+        report = resolve([old, new], on=MARCH, hts="7326")
+        assert {i.id for i in report.effective} == {"old"}
+
+
+class TestContradiction:
+    def test_different_programmes_stack_rather_than_conflict(self):
+        """232 and 301 are both TARIFF and are designed to stack. Reporting that
+        as a conflict trains a reader to ignore the warning that matters."""
+        s232 = _tariff("232", 50.0, Programme.SECTION_232, frm=JUNE)
+        s301 = _tariff("301", 25.0, Programme.SECTION_301, frm=JUNE)
+        assert find_contradictions([s232, s301]) == []
+
+    def test_same_programme_different_rate_is_a_contradiction(self):
+        a = _tariff("a", 50.0, Programme.SECTION_232, frm=JUNE)
+        b = _tariff("b", 35.0, Programme.SECTION_232, frm=JUNE)
+        found = find_contradictions([a, b])
+        assert len(found) == 1
+        assert {found[0].left_rate, found[0].right_rate} == {50.0, 35.0}
+
+    def test_an_explicit_supersession_resolves_rather_than_conflicts(self):
+        a = _tariff("a", 25.0, Programme.SECTION_232, frm=date(2026, 2, 1))
+        b = _tariff("b", 50.0, Programme.SECTION_232, frm=JUNE, supersedes=["a"])
+        assert find_contradictions([a, b]) == []
+
+    def test_unknown_programme_never_asserts_a_conflict(self):
+        """Federal Register metadata does not carry the programme, so an
+        unlabelled pair must not be claimed to conflict."""
+        a = _tariff("a", 50.0, Programme.UNKNOWN, frm=JUNE)
+        b = _tariff("b", 35.0, Programme.UNKNOWN, frm=JUNE)
+        assert find_contradictions([a, b]) == []
+
+    def test_non_overlapping_scopes_do_not_conflict(self):
+        a = _tariff("a", 50.0, Programme.SECTION_232, frm=JUNE, hts=("72",))
+        b = _tariff("b", 35.0, Programme.SECTION_232, frm=JUNE, hts=("85",))
+        assert find_contradictions([a, b]) == []
+
+
+class TestTrustworthiness:
+    def test_an_inferred_date_blocks_publication(self):
+        i = _tariff("a", 10.0, Programme.IEEPA, frm=JUNE,
+                    basis=DateBasis.INFERRED_FROM_PUBLICATION)
+        report = resolve([i], on=SEPT, hts="7326")
+        assert report.inferred_dates == ["a"]
+        assert not report.is_trustworthy
+
+    def test_a_contradiction_blocks_publication(self):
+        a = _tariff("a", 50.0, Programme.SECTION_232, frm=JUNE)
+        b = _tariff("b", 35.0, Programme.SECTION_232, frm=JUNE)
+        assert not resolve([a, b], on=SEPT, hts="7326").is_trustworthy
+
+    def test_a_clean_resolution_is_publishable(self):
+        assert resolve(
+            [_tariff("a", 50.0, Programme.SECTION_232, frm=JUNE)], on=SEPT, hts="7326"
+        ).is_trustworthy
+
+
+class TestStore:
+    def test_add_replaces_rather_than_duplicating(self):
+        """A re-ingest must update in place; duplicates would read as a
+        contradiction of themselves."""
+        store = InstrumentStore()
+        store.add(_tariff("a", 25.0, Programme.SECTION_232, frm=JUNE))
+        store.add(_tariff("a", 50.0, Programme.SECTION_232, frm=JUNE))
+        assert len(store.instruments) == 1
+        assert store.instruments["a"].effect.rate_percent == 50.0
+
+    def test_round_trips_through_json(self, tmp_path):
+        store = InstrumentStore()
+        store.extend(fx.generate_instruments())
+        path = tmp_path / "instruments.json"
+        store.save(path)
+        assert InstrumentStore.load(path).all() and len(
+            InstrumentStore.load(path).instruments
+        ) == len(store.instruments)
+
+    def test_missing_file_loads_empty_rather_than_raising(self, tmp_path):
+        assert InstrumentStore.load(tmp_path / "nope.json").instruments == {}
+
+    def test_diff_detects_a_silent_upstream_edit(self):
+        """A source that rewrites text without changing id or dates has
+        rewritten history, and nothing else would notice."""
+        before, after = InstrumentStore(), InstrumentStore()
+        a = _tariff("a", 25.0, Programme.SECTION_232, frm=JUNE)
+        a.text_hash = "aaa"
+        b = a.model_copy(update={"text_hash": "bbb"})
+        before.add(a)
+        after.add(b)
+        assert before.diff(after)["edited"] == ["a"]
+
+    def test_staleness_reports_the_oldest_not_the_newest(self):
+        store = InstrumentStore()
+        old = _tariff("old", 25.0, Programme.MFN, frm=JUNE)
+        old.retrieved_at = datetime(2020, 1, 1, tzinfo=UTC)
+        store.add(old)
+        store.add(_tariff("new", 25.0, Programme.MFN, frm=JUNE))
+        assert store.is_stale
+        assert store.staleness()["ageDays"] > 1000
+
+
+class TestFixtures:
+    def test_every_fixture_is_marked_synthetic(self):
+        """The Phase A rule, enforced rather than documented."""
+        assert all(i.origin is Origin.SYNTHETIC for i in fx.generate_instruments())
+
+    def test_fixtures_reproduce_supersession(self):
+        report = resolve(fx.generate_instruments(), on=SEPT, hts="7326.90.86")
+        assert "FR-2026-02-232-STEEL" in report.superseded
+
+    def test_fixtures_reproduce_stacking_without_false_conflict(self):
+        report = resolve(fx.generate_instruments(), on=SEPT, hts="7326.90.86", origin="CN")
+        programmes = {i.programme for i in report.effective}
+        assert Programme.SECTION_232 in programmes
+        assert Programme.SECTION_301 in programmes
+        assert report.contradictions == []
+
+    def test_injected_contradiction_is_detected(self):
+        report = resolve(
+            fx.generate_instruments(with_contradiction=True), on=SEPT, hts="7326.90.86"
+        )
+        assert len(report.contradictions) == 1
+        assert not report.is_trustworthy

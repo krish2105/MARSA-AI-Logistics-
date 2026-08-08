@@ -766,7 +766,7 @@ backend/src/marsa/
     quality.py              #     RAGAS, split by what needs a judge
     benchmark.py            #     every query down every path, cold/warm split
     report.py               #     RESULTS.md + the publication gate
-backend/tests/              # 361 tests
+backend/tests/              # 386 tests
 ```
 
 ---
