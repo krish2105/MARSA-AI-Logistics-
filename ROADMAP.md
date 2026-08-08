@@ -301,7 +301,107 @@ rather than dressing up.
 
 ---
 
-## 10. Sequencing, and what I would cut
+## 10. Cost model
+
+**Measured, not estimated.** Token counts come from the running system: the
+few-shot classifier prompt is 318 tokens; CROSS ruling bodies average 177
+tokens, so a top-5 whole-parent context is 885. Prices are Gemini 2.0 Flash
+($0.10/M in, $0.40/M out) as already configured in `router/llm.py`.
+
+### Per query
+
+| Path | Input tok | Output tok | LLM calls | $/query | $/1k queries |
+|---|---:|---:|---:|---:|---:|
+| `fast` | 1,203 | 150 | 2 | $0.000180 | $0.18 |
+| `agentic` | 2,973 | 400 | 4 | $0.000457 | $0.46 |
+| `graph` | 1,218 | 250 | 2 | $0.000222 | $0.22 |
+| **`compute`** (Phase H) | **318** | **0** | **1** | **$0.000032** | **$0.03** |
+
+Note the `calls` column. **Every user query costs at least two LLM calls** —
+one to classify, one or more to answer. The agentic path's plan → retrieve →
+critic loop makes four. That column, not the dollar column, turns out to be the
+one that matters.
+
+### The finding that reframes the plan: rate limits bind long before cost does
+
+At paid rates this system is almost free. Blended across the current Phase F
+routing mix:
+
+| Volume | Today | With the compute route | Saved |
+|---|---:|---:|---:|
+| 1,000 q/mo | $0.24 | $0.18 | 26% |
+| 10,000 q/mo | $2.38 | $1.76 | 26% |
+| 100,000 q/mo | $23.77 | $17.60 | 26% |
+
+**$24/month at 100,000 queries.** Cost is not a constraint at any volume this
+project will plausibly reach. Optimising it in dollar terms is theatre.
+
+The binding constraint is the free tier's **request** ceiling, and because each
+query costs 2–4 calls, it bites four times harder than it looks:
+
+| Path | Gemini 2.5 Flash (250 req/day) | Flash-Lite (1,000 req/day) |
+|---|---:|---:|
+| `fast` | 125 user queries/day | 500/day |
+| `agentic` | **62 user queries/day** | 250/day |
+| `graph` | 125 user queries/day | 500/day |
+| **`compute`** | **250 user queries/day** | **1,000/day** |
+
+So the honest headline is: **on the free tier this demo supports roughly 60–125
+real queries a day**, and a single enthusiastic reviewer clicking through the
+console can exhaust a day's quota. That is a product fact, not a footnote, and
+it is why quota-aware degradation (§8) is a shipping requirement rather than a
+nicety.
+
+### What this does to the case for Phase H
+
+The argument for the compute route was correctness. The numbers make it
+stronger on two further axes:
+
+- **5.6× cheaper** than the fast path, 14× cheaper than agentic.
+- **It doubles-to-quadruples free-tier throughput** — 250 queries/day versus 62
+  on agentic — because it removes the answer-path LLM call entirely rather than
+  merely shrinking it.
+
+That last point is the one to lead with. Under a request-capped free tier,
+*removing a call* is worth vastly more than *shortening a prompt*, and the
+compute route is the only change on the roadmap that removes one.
+
+### Corroboration and caveats
+
+The 26% blended saving is worth flagging: independent work on cost-aware RAG
+routing reports a 26% reduction in billed token cost from routing versus
+always-heavy retrieval. Arriving at the same figure from measured token counts
+on a different corpus is a useful sanity check on the method.
+
+Three caveats, stated because the numbers are cheap to misread:
+
+1. **Fixture scale.** CROSS bodies here average 708 characters. Real CBP
+   rulings routinely run several thousand. Expect input tokens — and therefore
+   cost — to rise several-fold on the real corpus. The *ratios* between paths
+   should hold; the absolute figures will not.
+2. **Output tokens are the degraded ones.** With no LLM configured, answers are
+   template-generated. A real generator writes longer, so output cost is
+   understated.
+3. **Nothing here is measured against a live provider.** These are computed
+   from measured token counts and published prices, not from a bill. The first
+   real API key turns this table from a model into a measurement.
+
+### Non-LLM infrastructure
+
+| Service | Free allowance | Headroom at this scale |
+|---|---|---|
+| Neon | 100 CU-hours/mo, 0.5 GB, 5 GB transfer | Ample — corpus is ~6 MB |
+| Render | 750 instance-hours/mo, 512 MB, 0.1 CPU | One always-on service fits; spins down after 15 min idle, ~1 min cold start |
+| Vercel | Hobby | Ample |
+| GHCR | Public/private packages | Ample |
+
+Render's free Postgres expires after 30 days and has no pgvector, which is why
+the database is Neon. Render's 512 MB is the tighter constraint: the boot-time
+index build must stay inside it as the corpus grows.
+
+---
+
+## 11. Sequencing, and what I would cut
 
 You ranked all four wedges. As CTO I have to say plainly: **all four at
 publishable depth is not a solo free-tier project in any short timeframe.**
@@ -325,7 +425,47 @@ demonstrable contribution on its own.
 
 ---
 
-## 11. Risk register
+## 12. Decision gates
+
+A plan with no kill criteria is a wish. Each gate has a measurement, a
+threshold, and a pre-agreed action if it fails — decided now, while nothing is
+sunk, rather than in month three while defending prior effort.
+
+No calendar dates: none has been set. Gates are ordered by dependency, and each
+is evaluated when its phase completes.
+
+| # | Gate | Measured by | Pass | If it fails |
+|---|---|---|---|---|
+| **G1** | The RKL premise holds | For a 50-triple sample of (HTS, origin, date), can we return the instrument set actually in force, from public sources? | ≥ 80% coverage | < 60%: the "one primitive" thesis is wrong. Stop. Fall back to a single-regime tool (232 only) and re-plan. |
+| **G2** | Instruments are genuinely versioned | Fraction of ingested instruments carrying a usable `effective_from` | ≥ 90% | < 70%: point-in-time queries are not supportable. Drop the temporal claim from the thesis rather than fake it. |
+| **G3** | Duty arithmetic is exact | 30 hand-checked calculations incl. capped country, USMCA split, stacked 232+301, CBAM-liable | **100%** | Anything below 100% blocks shipping Phase H. Arithmetic has no partial credit. |
+| **G4** | The router sends duty questions to `compute` | Routing accuracy on a duty-question slice of the labelled set | ≥ 95% to `compute` | < 95%: hard-route on a deterministic pre-filter *before* the classifier. A duty question reaching `agentic` produces hallucinated arithmetic — the highest-severity failure in the system. |
+| **G5** | Screening does not false-negative | Recall on hand-labelled supplier-name variants | ≥ 95% recall | < 95%: ship as `POSSIBLE`/`NO EVIDENCE` only, remove any single-result view that could read as a clearance. |
+| **G6** | RESULTS.md can leave PROVISIONAL | Gate blockers remaining after Phase G ingestion + an API key | ≤ 1 blocker | Still 3: the academic contribution is at risk. Escalate — either secure real corpus access or re-scope the thesis around Phase G's own real data, which is reachable. |
+| **G7** | Free tier survives demand | Sustained daily query volume vs the 62–250/day ceiling in §10 | Under ceiling | Exceeded: decide explicitly — pay for Tier 1, or cap and queue with an honest on-screen message. Do not let it fail silently. |
+| **G8** | Scope stays solo-sized | Phases complete vs the §11 cut list | G+H+I done before J starts | Behind: execute the cut list as written. It exists to be used, not admired. |
+
+### The three that actually matter
+
+**G3 and G4 are shipping blockers**, not health checks. A duty engine that is
+99% right is a liability generator; a classifier that routes duty questions to
+an LLM will invent numbers that look correct. Both fail closed.
+
+**G1 is the one to run early and cheaply.** It is testable in a day against
+public sources, before any real investment in Phase G. If the instrument data
+is not there in usable form, everything downstream collapses — and that is much
+better discovered in week one than month two.
+
+### Pre-agreed reversals
+
+Two things I will do without asking if the gates say so:
+
+- If **G3** fails, Phase H does not ship, regardless of how complete it looks.
+- If **G1** fails, I stop and bring you a re-plan rather than building G anyway.
+
+---
+
+## 13. Risk register
 
 | Risk | Severity | Mitigation |
 |---|---|---|
@@ -345,7 +485,7 @@ data.
 
 ---
 
-## 12. What "ready to deploy" means here
+## 14. What "ready to deploy" means here
 
 Already true: CI green, both images built and the backend image proven to boot,
 serve, answer a real query, and refuse to start on a silent pgvector fallback.
