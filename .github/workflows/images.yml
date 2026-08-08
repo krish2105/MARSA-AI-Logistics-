@@ -128,3 +128,116 @@ jobs:
           # this build-arg entirely.
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+
+  # Nothing had ever *run* the backend image — only built it. The entrypoint
+  # (boot-time index build, the pgvector fallback guard, $PORT binding, the
+  # non-root user's write access to /app/data) was verified by simulating the
+  # shell logic, which is not the same as executing it in the container.
+  #
+  # Deploying to Render would otherwise be the first real boot, on the machine
+  # least convenient to debug. This runs it here instead.
+  #
+  # Deliberately does NOT `needs: build` — that would wait on the frontend leg,
+  # which fails by design until a gateway URL is configured, and would skip
+  # this entirely. It rebuilds from the same cache scope, so it is cheap.
+  smoke:
+    name: Backend image boots and serves
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: marsa
+          POSTGRES_PASSWORD: marsa
+          POSTGRES_DB: marsa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the backend image into the local daemon
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: marsa-backend:smoke
+          cache-from: type=gha,scope=backend
+
+      - name: It boots against pgvector and serves /health
+        run: |
+          docker run -d --name marsa --network host \
+            -e DATABASE_URL=postgresql://marsa:marsa@127.0.0.1:5432/marsa \
+            -e MARSA_REQUIRE_PGVECTOR=true \
+            marsa-backend:smoke
+
+          # Generous: the boot builds the fast-path index before serving.
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health >/tmp/health.json 2>/dev/null; then
+              echo "healthy after ${i}s"; break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' marsa)" != "true" ]; then
+              echo "::error::container exited during boot"; docker logs marsa; exit 1
+            fi
+            sleep 1
+          done
+
+          docker logs marsa
+          test -s /tmp/health.json || { echo "::error::never became healthy"; exit 1; }
+          python3 - <<'EOF'
+          import json
+          h = json.load(open("/tmp/health.json"))
+          print(json.dumps(h, indent=2))
+          assert h["status"] in {"ok", "degraded"}, h["status"]
+          # The whole point of baking artifacts into the image: these must be
+          # true on a cold container with no volumes attached.
+          assert h["resources"]["fastPathIndex"], "fast-path index missing on a cold boot"
+          assert h["resources"]["supplyGraph"], "supply graph missing on a cold boot"
+          print("OK cold boot has both resources")
+          EOF
+
+      - name: It answers a real query end to end
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8000/query \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"Which suppliers are exposed if Jebel Ali congestion worsens?"}' \
+            -o /tmp/q.json
+          python3 - <<'EOF'
+          import json
+          a = json.load(open("/tmp/q.json"))
+          assert a["path"] == "graph", a["path"]
+          assert a["answer"].strip(), "empty answer"
+          print(f"OK routed to {a['path']} in {a['latencyMs']:.0f}ms")
+          EOF
+          docker rm -f marsa
+
+      - name: It refuses to start on a silent pgvector fallback
+        run: |
+          # An unreachable database does not fail the index build — it falls
+          # back to an in-process numpy store and reports success. In
+          # production that is a green container that never touches pgvector
+          # and loses its vectors on restart, so render.yaml sets this flag.
+          # Verify the flag actually stops the container.
+          set +e
+          docker run --name marsa-bad --network host \
+            -e DATABASE_URL=postgresql://marsa:marsa@127.0.0.1:9999/nope \
+            -e MARSA_REQUIRE_PGVECTOR=true \
+            marsa-backend:smoke
+          code=$?
+          set -e
+          docker logs marsa-bad 2>&1 | tail -5
+          test "$code" -ne 0 || { echo "::error::booted despite a silent numpy fallback"; exit 1; }
+          echo "OK refused to start (exit $code)"
