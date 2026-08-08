@@ -104,6 +104,16 @@ The three routing paths are separated by **hue distance** (cyan 210° / violet
 under deuteranopia. Colour never carries the routing decision alone: the path
 name is always present as text and each path has its own icon.
 
+Phase H's **compute path is deliberately near-achromatic** rather than a fourth
+accent hue. Three reasons: it is the only path that makes no model call, and a
+difference in *chroma* says that where a fourth colour would imply a peer; the
+remaining hue space is not safe (156, 210 and 296 are taken by routes, 72 and
+27 by the risk chips, 224 by primary, and what is left sits in the red-green
+band deuteranopia compresses); and chroma difference survives every
+colour-vision deficiency because it does not require discriminating hue at all.
+Measured, it is the *highest*-contrast chip of the four against its card —
+12.1:1 in dark, where fast is 9.95:1.
+
 ### Contrast is measured, not claimed
 
 `/theme` renders every token in both themes and computes WCAG contrast ratios

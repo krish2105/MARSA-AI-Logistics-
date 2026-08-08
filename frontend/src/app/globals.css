@@ -64,6 +64,24 @@
   --route-graph-foreground: oklch(0.99 0.002 240);
   --route-graph-muted: oklch(0.945 0.036 156);
 
+  /* The compute path is deliberately near-achromatic rather than a fourth
+     accent hue. Three reasons, in order of weight:
+
+     1. It is categorically different from the others — no model call at all —
+        and a difference in *chroma* rather than hue says that, where a fourth
+        colour would imply a fourth peer.
+     2. The remaining hue space is not safe. 156, 210 and 296 are taken by the
+        routes, 72 and 27 by the risk chips, 224 by primary. What is left sits
+        in the red-green band that deuteranopia compresses.
+     3. Chroma difference survives every colour-vision deficiency, because it
+        does not depend on discriminating hue at all.
+
+     Kept at full text contrast so it reads as a peer and not as disabled; the
+     Route Badge carries the label and its own icon regardless. */
+  --route-compute: oklch(0.402 0.021 250);
+  --route-compute-foreground: oklch(0.99 0.002 240);
+  --route-compute-muted: oklch(0.941 0.008 250);
+
   /* ─ Risk tiers — late-delivery + port-congestion scoring (Phase D) */
   /* Lightness here was solved against each chip's own tinted background, not
      eyeballed: amber in particular had to drop from L 0.612 to 0.536 to clear
@@ -129,6 +147,10 @@
   --route-graph-foreground: oklch(0.168 0.028 250);
   --route-graph-muted: oklch(0.278 0.052 156);
 
+  --route-compute: oklch(0.842 0.016 250);
+  --route-compute-foreground: oklch(0.168 0.028 250);
+  --route-compute-muted: oklch(0.276 0.014 250);
+
   --risk-low: oklch(0.788 0.126 156);
   --risk-low-muted: oklch(0.278 0.052 156);
   --risk-medium: oklch(0.812 0.136 82);
@@ -179,6 +201,10 @@
   --color-route-graph: var(--route-graph);
   --color-route-graph-foreground: var(--route-graph-foreground);
   --color-route-graph-muted: var(--route-graph-muted);
+
+  --color-route-compute: var(--route-compute);
+  --color-route-compute-foreground: var(--route-compute-foreground);
+  --color-route-compute-muted: var(--route-compute-muted);
 
   --color-risk-low: var(--risk-low);
   --color-risk-low-muted: var(--risk-low-muted);

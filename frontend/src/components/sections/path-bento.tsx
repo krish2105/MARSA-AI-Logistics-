@@ -1,21 +1,31 @@
-import { Gauge, Network, Workflow } from "lucide-react";
+import { Calculator, Gauge, Network, Workflow } from "lucide-react";
 
 import { ROUTE_PATHS, type RoutePathId } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 
-const ICONS = { fast: Gauge, agentic: Workflow, graph: Network } as const;
+const ICONS = {
+  fast: Gauge,
+  agentic: Workflow,
+  graph: Network,
+  compute: Calculator,
+} as const;
 
 const TARGETS: Record<RoutePathId, string> = {
   fast: "Target < 2s, near-zero cost per query",
   agentic: "Planner → Critic → retry, max 2 reformulations",
   graph: "k-hop traversal with LPI + ML risk overlay",
+  compute: "Exact arithmetic, cited to each instrument — zero model calls",
 };
 
 /**
- * Bento grid of the three routing paths.
+ * Bento grid of the routing paths.
  *
  * Sizes are intentionally uneven — the agentic path spans two columns because
  * it carries the most explanation. Uniform cards would waste the format.
+ *
+ * Four since Phase H. The compute path is rendered near-achromatic rather than
+ * with a fourth accent hue: it is the only path that makes no model call, and a
+ * difference in chroma states that where a fourth colour would imply a peer.
  */
 export function PathBento() {
   return (

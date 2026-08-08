@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { Gauge, Network, Route, Workflow } from "lucide-react";
+import { Calculator, Gauge, Network, Route, Workflow } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -15,6 +15,7 @@ const ICONS: Record<RoutePathId, typeof Route> = {
   fast: Gauge,
   agentic: Workflow,
   graph: Network,
+  compute: Calculator,
 };
 
 /**
@@ -65,9 +66,7 @@ export function RouteBadge({
             "inline-flex items-center gap-2 rounded-full px-3 py-1",
             "text-sm font-semibold",
             meta.accent,
-            path === "fast" && "text-route-fast-foreground",
-            path === "agentic" && "text-route-agentic-foreground",
-            path === "graph" && "text-route-graph-foreground",
+            meta.accentForeground,
           )}
         >
           <Icon className="size-4" aria-hidden />

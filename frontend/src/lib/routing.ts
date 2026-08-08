@@ -8,12 +8,19 @@
  * only place placeholder numbers live.
  */
 
-export type RoutePathId = "fast" | "agentic" | "graph";
+export type RoutePathId = "fast" | "agentic" | "graph" | "compute";
 
 export type Classification =
   | "simple_factual"
   | "multi_hop_reasoning"
-  | "relationship_network";
+  | "relationship_network"
+  /**
+   * Phase H. Not a classifier output like the others — a deterministic
+   * pre-filter decides this one before the classifier is consulted, because a
+   * duty question reaching a model produces confident, plausible, wrong
+   * arithmetic. Named here so the Route Badge can label it.
+   */
+  | "duty_calculation";
 
 export interface RoutePath {
   id: RoutePathId;
@@ -27,6 +34,16 @@ export interface RoutePath {
   corpora: string[];
   /** Tailwind token names — kept as literal classes so they survive purging. */
   accent: string;
+  /**
+   * Text colour for a chip filled with `accent`.
+   *
+   * Lives here rather than in a per-path conditional chain at the call site.
+   * The chain version silently omitted `compute` when Phase H added it, so the
+   * chip rendered light-on-light at 1.46:1 — a real AA failure that looked
+   * merely "muted". A record keyed by RoutePathId makes the compiler catch the
+   * next one.
+   */
+  accentForeground: string;
   accentMuted: string;
   accentText: string;
 }
@@ -39,6 +56,7 @@ export const ROUTE_PATHS: Record<RoutePathId, RoutePath> = {
     strategy: "Hybrid RAG — dense (MiniLM) + BM25, cross-encoder rerank",
     corpora: ["CBP CROSS rulings"],
     accent: "bg-route-fast",
+    accentForeground: "text-route-fast-foreground",
     accentMuted: "bg-route-fast-muted",
     accentText: "text-route-fast",
   },
@@ -49,6 +67,7 @@ export const ROUTE_PATHS: Record<RoutePathId, RoutePath> = {
     strategy: "LangGraph loop — plan → retrieve → critic → retry (max 2×)",
     corpora: ["UN Comtrade", "DataCo Supply Chain"],
     accent: "bg-route-agentic",
+    accentForeground: "text-route-agentic-foreground",
     accentMuted: "bg-route-agentic-muted",
     accentText: "text-route-agentic",
   },
@@ -59,8 +78,20 @@ export const ROUTE_PATHS: Record<RoutePathId, RoutePath> = {
     strategy: "GraphRAG — entity resolution → k-hop traversal → synthesis",
     corpora: ["NetworkX supply graph", "World Bank LPI 2.0"],
     accent: "bg-route-graph",
+    accentForeground: "text-route-graph-foreground",
     accentMuted: "bg-route-graph-muted",
     accentText: "text-route-graph",
+  },
+  compute: {
+    id: "compute",
+    label: "Compute Path",
+    classification: "duty_calculation",
+    strategy: "Deterministic layered arithmetic — no model call in the answer",
+    corpora: ["Regulatory instruments (Phase G)"],
+    accent: "bg-route-compute",
+    accentForeground: "text-route-compute-foreground",
+    accentMuted: "bg-route-compute-muted",
+    accentText: "text-route-compute",
   },
 };
 
@@ -155,6 +186,30 @@ export const SAMPLE_RESPONSES: RoutedResponse[] = [
     latencyMs: 3960,
     costUsd: 0.00142,
   },
+  {
+    query: "What duty applies to HTS 7326.90.86 from China on a $40,000 shipment?",
+    path: "compute",
+    // Not a classifier confidence. A deterministic pre-filter made this call
+    // before the classifier was consulted, and the number is evidence count
+    // rather than a probability — the badge labels it as such.
+    confidence: 1,
+    rationale:
+      "A duty question, detected deterministically rather than classified. It is routed to a calculator because a language model asked to add 2.9% + 50% + 25% on $40,000 produces a number that looks right, and the number is the deliverable.",
+    steps: [
+      { label: "Parse", detail: "HTS 7326.90.86, origin CN" },
+      { label: "Resolve instruments", detail: "3 layers in force on the entry date" },
+      { label: "Compute", detail: "deterministic — no model call" },
+    ],
+    answer:
+      "MFN 2.9% + Section 232 at 50% + Section 301 at 25% = 77.9%, or $31,160.00 on a $40,000 customs value. The February Section 232 instrument is excluded: its own window is still open, but the June proclamation replaced it. Every line cites the instrument that imposes it, and no language model touched any figure.",
+    citations: [
+      "HTS-73269086 (USITC column 1 general)",
+      "FR-2026-06-232-STEEL",
+      "FR-2026-301-CN",
+    ],
+    latencyMs: 4,
+    costUsd: 0,
+  },
 ];
 
 /** Aggregate benchmark placeholders — replaced by the Phase F harness. */
@@ -170,6 +225,7 @@ export const BENCHMARKS: PathBenchmark[] = [
   { path: "fast", routingAccuracy: 0, medianLatencyMs: 0, costPerQueryUsd: 0, faithfulness: 0 },
   { path: "agentic", routingAccuracy: 0, medianLatencyMs: 0, costPerQueryUsd: 0, faithfulness: 0 },
   { path: "graph", routingAccuracy: 0, medianLatencyMs: 0, costPerQueryUsd: 0, faithfulness: 0 },
+  { path: "compute", routingAccuracy: 0, medianLatencyMs: 0, costPerQueryUsd: 0, faithfulness: 0 },
 ];
 
 export function formatLatency(ms: number): string {
