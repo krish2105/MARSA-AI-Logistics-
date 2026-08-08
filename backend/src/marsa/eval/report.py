@@ -332,11 +332,21 @@ def render_markdown(results: EvaluationResults) -> str:
 
 
 def write_results(results: EvaluationResults, *, repo_root: Path) -> tuple[Path, Path]:
-    """Write RESULTS.md and the machine-readable sidecar."""
+    """Write RESULTS.md and the machine-readable sidecar.
+
+    RESULTS.md belongs at the repo root — it is a published document. The
+    sidecar belongs under the configured data directory, and is resolved from
+    `settings.data_dir` rather than rebuilt as `repo_root / "data"`. Those two
+    agree only while the data directory is literally named `data`; set DATA_DIR
+    anywhere else and the reconstructed form writes the sidecar outside it,
+    where the next reader looks in the configured location and finds nothing.
+    """
+    from marsa.config import settings
+
     markdown_path = repo_root / "RESULTS.md"
     markdown_path.write_text(render_markdown(results), encoding="utf-8")
 
-    json_path = repo_root / "data" / "eval" / "results.json"
+    json_path = settings.data_dir / "eval" / "results.json"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(results.as_dict(), indent=2) + "\n", encoding="utf-8")
 

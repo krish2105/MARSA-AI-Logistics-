@@ -16,6 +16,7 @@ from marsa.ml.features import (
     LEAKY_SPEC,
     FeatureSpec,
     build_matrix,
+    fit_category_dtypes,
     orders_to_frame,
 )
 from marsa.ml.models import (
@@ -103,12 +104,18 @@ def train_and_compare(
     if frame.empty:
         raise ValueError("no usable orders (need both a label and an order date)")
 
+    # Fit the category levels on the full frame BEFORE splitting, so train and
+    # test share one code mapping. Deriving them per slice makes the same
+    # country mean different integers on each side of the split. See
+    # `fit_category_dtypes`.
+    dtypes = fit_category_dtypes(frame, DEFAULT_SPEC)
+
     split = temporal_split(frame, train_frac=train_frac, valid_frac=valid_frac)
     if not split_is_chronological(split):
         raise RuntimeError("temporal split is not chronological — refusing to train")
 
-    X_train, y_train = build_matrix(split.train, DEFAULT_SPEC)
-    X_test, y_test = build_matrix(split.test, DEFAULT_SPEC)
+    X_train, y_train = build_matrix(split.train, DEFAULT_SPEC, dtypes=dtypes)
+    X_test, y_test = build_matrix(split.test, DEFAULT_SPEC, dtypes=dtypes)
 
     # Boosted trees take the positive/negative ratio explicitly; the linear
     # model uses class_weight="balanced" for the same purpose.
@@ -161,8 +168,18 @@ def _run_leakage_demo(split: Split) -> ModelResult:
     rather than a claim in a README — and so that a reader who has seen 0.99
     AUC published on this dataset can see exactly where it comes from.
     """
-    X_train, y_train = build_matrix(split.train, LEAKY_SPEC, allow_leakage=True)
-    X_test, y_test = build_matrix(split.test, LEAKY_SPEC, allow_leakage=True)
+    # Same shared-dtype requirement as the honest run. Rebuilt from both slices
+    # because this spec carries an extra categorical (`delivery_status`) that
+    # the caller's dtypes do not cover.
+    dtypes = fit_category_dtypes(
+        pd.concat([split.train, split.test], ignore_index=True), LEAKY_SPEC
+    )
+    X_train, y_train = build_matrix(
+        split.train, LEAKY_SPEC, allow_leakage=True, dtypes=dtypes
+    )
+    X_test, y_test = build_matrix(
+        split.test, LEAKY_SPEC, allow_leakage=True, dtypes=dtypes
+    )
 
     result = _fit_and_score(
         "logistic_regression__LEAKY",

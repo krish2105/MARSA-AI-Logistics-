@@ -30,6 +30,7 @@ from marsa.ml.features import (
     LeakageError,
     assert_no_leakage,
     build_matrix,
+    fit_category_dtypes,
     orders_to_frame,
 )
 from marsa.ml.models import calibration_points, evaluate
@@ -132,6 +133,73 @@ class TestFeatures:
         X, _ = build_matrix(frame, DEFAULT_SPEC)
         for column in DEFAULT_SPEC.categorical:
             assert str(X[column].dtype) == "category"
+
+
+class TestSharedCategoryDtypes:
+    """A category's integer code must mean the same thing on both sides of the
+    split.
+
+    Deriving the dtype per slice looks equivalent and is not: pandas builds the
+    level list from the values a slice happens to contain and assigns codes by
+    sorted position, so one category missing from one side shifts every code
+    after it. The model then predicts with a mapping it was not trained on and
+    returns confident nonsense rather than raising.
+    """
+
+    def test_codes_are_stable_across_slices(self, frame):
+        dtypes = fit_category_dtypes(frame, DEFAULT_SPEC)
+        early = frame.iloc[: len(frame) // 2]
+        late = frame.iloc[len(frame) // 2 :]
+
+        X_early, _ = build_matrix(early, DEFAULT_SPEC, dtypes=dtypes)
+        X_late, _ = build_matrix(late, DEFAULT_SPEC, dtypes=dtypes)
+
+        for column in DEFAULT_SPEC.categorical:
+            assert list(X_early[column].cat.categories) == list(
+                X_late[column].cat.categories
+            ), f"{column} category mapping differs between slices"
+
+    def test_unshared_dtypes_would_drift(self, frame):
+        """Pins the failure mode itself, so the fix cannot be quietly removed."""
+        import pandas as pd
+
+        column = "order_country"
+        values = sorted(frame[column].dropna().unique())
+        if len(values) < 2:
+            pytest.skip("needs at least two categories to show drift")
+
+        full = pd.Series(values).astype("category")
+        # Drop the alphabetically-first value, as a temporal split routinely
+        # does for a category that only trades in one period.
+        missing_first = pd.Series(values[1:]).astype("category")
+
+        survivor = values[1]
+        assert list(full.cat.categories).index(survivor) != list(
+            missing_first.cat.categories
+        ).index(survivor), "per-slice dtypes no longer drift; this test is stale"
+
+    def test_category_absent_from_a_slice_keeps_its_level(self, frame):
+        dtypes = fit_category_dtypes(frame, DEFAULT_SPEC)
+        column = "order_country"
+        dropped = frame[column].dropna().iloc[0]
+        subset = frame[frame[column] != dropped]
+        if subset.empty:
+            pytest.skip("only one country in this corpus")
+
+        X, _ = build_matrix(subset, DEFAULT_SPEC, dtypes=dtypes)
+        # Present as a level with zero rows — which is what lets a model fit on
+        # one slice score another without an unseen-category error.
+        assert dropped in list(X[column].cat.categories)
+        assert (X[column] == dropped).sum() == 0
+
+    def test_small_corpus_trains_without_unseen_category_error(self):
+        """The exact CI configuration. 200 orders is small enough that rare
+        countries land in only one slice; 5000 hides the bug entirely, which is
+        why it reached CI and not local runs."""
+        orders = list(fx.generate_dataco_orders(200, seed=42))
+        report, _artifacts = train_and_compare(orders)
+        assert report.results, "no models trained"
+        assert report.best is not None
 
     def test_empty_frame_rejected(self):
         import pandas as pd

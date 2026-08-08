@@ -160,10 +160,53 @@ def assert_no_leakage(columns: Iterable[str], *, allow: set[str] | None = None) 
         )
 
 
+def fit_category_dtypes(
+    frame: pd.DataFrame, spec: FeatureSpec = DEFAULT_SPEC
+) -> dict[str, pd.CategoricalDtype]:
+    """Derive one categorical dtype per column, over the WHOLE dataset.
+
+    This must be computed before the temporal split and shared by every slice.
+    Calling `.astype("category")` on each slice separately looks equivalent and
+    is not: pandas builds the category list from the values that slice happens
+    to contain, and assigns integer codes by sorted position. Two slices with
+    different value sets therefore produce different code mappings for the same
+    string.
+
+    A category that trades only in the early period is enough to shift every
+    later code by one, so a model trained with `France == 1` is asked to
+    predict with `France == 0` — which meant a different country during
+    training. The model does not error; it returns confident nonsense. XGBoost
+    3.x catches the subset of this it can see (a level present at predict time
+    and absent at fit time) and raises; the reverse direction is silent.
+
+    Sharing one dtype makes the codes stable and lets a category legitimately
+    have zero rows in a slice, which under a chronological split is normal
+    rather than exceptional.
+    """
+    dtypes: dict[str, pd.CategoricalDtype] = {}
+    for column in spec.categorical:
+        if column not in frame.columns:
+            continue
+        # sorted + unique so the mapping is deterministic across runs, and
+        # dropna because NaN is represented as code -1, not as a level.
+        levels = pd.Series(frame[column].dropna().unique()).sort_values()
+        dtypes[column] = pd.CategoricalDtype(categories=levels, ordered=False)
+    return dtypes
+
+
 def build_matrix(
-    frame: pd.DataFrame, spec: FeatureSpec = DEFAULT_SPEC, *, allow_leakage: bool = False
+    frame: pd.DataFrame,
+    spec: FeatureSpec = DEFAULT_SPEC,
+    *,
+    allow_leakage: bool = False,
+    dtypes: dict[str, pd.CategoricalDtype] | None = None,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Return (X, y) for a given feature spec."""
+    """Return (X, y) for a given feature spec.
+
+    Pass `dtypes` from `fit_category_dtypes` over the full dataset whenever
+    more than one frame is built — see that function for why. Omitting it is
+    only correct when a single frame is the entire universe.
+    """
     if frame.empty:
         raise ValueError("no rows to build features from")
 
@@ -180,7 +223,9 @@ def build_matrix(
     # in its own pipeline. Declaring the dtype once keeps both honest about
     # which columns are categorical.
     for column in spec.categorical:
-        X[column] = X[column].astype("category")
+        X[column] = X[column].astype(
+            dtypes[column] if dtypes and column in dtypes else "category"
+        )
     for column in spec.numeric:
         X[column] = pd.to_numeric(X[column], errors="coerce")
 

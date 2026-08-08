@@ -11,8 +11,9 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                    # 344 tests
+pytest                    # 348 tests
 ruff check src tests
+./scripts/ci-local.sh     # everything CI runs, with CI's parameters
 
 marsa-ingest fixtures     # synthetic corpora — no network needed
 marsa-ingest status       # what's on disk, and is it real?
@@ -268,5 +269,5 @@ src/marsa/
     benchmark.py             # every query down every path; cold/warm separated
     report.py                # RESULTS.md + the publication gate
     cli.py                   # marsa-eval
-tests/                       # 344 tests; 18 hit real Postgres, rest offline
+tests/                       # 348 tests; 18 hit real Postgres, rest offline
 ```

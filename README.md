@@ -415,6 +415,41 @@ problem.
   model borrows strength from mode, region and category. The observed rate stays
   on the edge next to the prediction, and `risk_source` records which won.
 
+### The bug that only CI could see
+
+Categorical dtypes were derived **after** the temporal split — `.astype("category")`
+called on the train slice and the test slice independently. That looks
+equivalent to doing it once and is not. pandas builds the level list from the
+values a slice happens to contain and assigns integer codes by sorted position,
+so one category missing from one side shifts every code after it:
+
+```
+train categories: ['Brazil', 'France', 'Spain']     France -> 1
+test  categories: ['France', 'Spain']               France -> 0   ← same string
+```
+
+A model fitted with `France == 1` was then asked to predict with `France == 0`,
+which during training meant Brazil. It does not raise; it returns confident
+nonsense. XGBoost 3.x catches the half it can detect — a level present at
+predict time and absent at fit time — and raises `Found a category not in the
+training set`. The opposite direction is silent.
+
+Levels are now fitted once over the full frame and shared by every slice, so
+codes are stable and a category with zero rows in a slice is normal rather than
+fatal — which under a chronological split it is.
+
+**The published Phase D numbers are unaffected**, and that was checked rather
+than assumed: re-running at 5,000 orders reproduces PR-AUC 0.8293 / 0.7924 /
+0.7878 exactly. At that size every country appears in both slices, so the two
+mappings coincided.
+
+**Why it took five red builds to find.** CI's smoke test runs
+`--orders 200`; every local run used the default 5,000. The bug is invisible
+above roughly a thousand orders. I verified with parameters CI does not use,
+reported green, and did not read the workflow logs. `backend/scripts/ci-local.sh`
+now runs the CI steps with CI's arguments, and there is a regression test that
+trains on exactly 200 orders.
+
 ---
 
 ## Phase E: the adaptive router
@@ -730,7 +765,7 @@ backend/src/marsa/
     quality.py              #     RAGAS, split by what needs a judge
     benchmark.py            #     every query down every path, cold/warm split
     report.py               #     RESULTS.md + the publication gate
-backend/tests/              # 344 tests
+backend/tests/              # 348 tests
 ```
 
 ---
