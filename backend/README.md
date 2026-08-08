@@ -11,7 +11,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                    # 348 tests
+pytest                    # 361 tests
 ruff check src tests
 ./scripts/ci-local.sh     # everything CI runs, with CI's parameters
 
@@ -262,6 +262,9 @@ src/marsa/
   api/
     main.py                  # FastAPI gateway, SSE, metrics, cost ledger
     schemas.py               # Pydantic v2 request/response
+  regulatory/                # G — decision gate G1 only, by design
+    probe.py                 #     is the instrument data really there?
+    cli.py                   #     marsa-reg
   eval/
     dataset.py               # 60 hand-labelled queries, each with a rationale
     routing.py               # accuracy, confusion, error direction, calibration
@@ -269,5 +272,5 @@ src/marsa/
     benchmark.py             # every query down every path; cold/warm separated
     report.py                # RESULTS.md + the publication gate
     cli.py                   # marsa-eval
-tests/                       # 348 tests; 18 hit real Postgres, rest offline
+tests/                       # 361 tests; 18 hit real Postgres, rest offline
 ```

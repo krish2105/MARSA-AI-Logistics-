@@ -49,6 +49,7 @@ marsa-index = "marsa.indexing.cli:app"
 marsa-graph = "marsa.graph.cli:app"
 marsa-ml = "marsa.ml.cli:app"
 marsa-eval = "marsa.eval.cli:app"
+marsa-reg = "marsa.regulatory.cli:app"
 
 [build-system]
 requires = ["setuptools>=68"]

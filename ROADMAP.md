@@ -436,7 +436,7 @@ is evaluated when its phase completes.
 
 | # | Gate | Measured by | Pass | If it fails |
 |---|---|---|---|---|
-| **G1** | The RKL premise holds | For a 50-triple sample of (HTS, origin, date), can we return the instrument set actually in force, from public sources? | ≥ 80% coverage | < 60%: the "one primitive" thesis is wrong. Stop. Fall back to a single-regime tool (232 only) and re-plan. |
+| **G1** | The RKL premise holds | `marsa-reg probe` — mean required-field coverage across the four sources | ≥ 80% coverage | < 60%: the "one primitive" thesis is wrong. Stop. Fall back to a single-regime tool (232 only) and re-plan. |
 | **G2** | Instruments are genuinely versioned | Fraction of ingested instruments carrying a usable `effective_from` | ≥ 90% | < 70%: point-in-time queries are not supportable. Drop the temporal claim from the thesis rather than fake it. |
 | **G3** | Duty arithmetic is exact | 30 hand-checked calculations incl. capped country, USMCA split, stacked 232+301, CBAM-liable | **100%** | Anything below 100% blocks shipping Phase H. Arithmetic has no partial credit. |
 | **G4** | The router sends duty questions to `compute` | Routing accuracy on a duty-question slice of the labelled set | ≥ 95% to `compute` | < 95%: hard-route on a deterministic pre-filter *before* the classifier. A duty question reaching `agentic` produces hallucinated arithmetic — the highest-severity failure in the system. |
@@ -444,6 +444,24 @@ is evaluated when its phase completes.
 | **G6** | RESULTS.md can leave PROVISIONAL | Gate blockers remaining after Phase G ingestion + an API key | ≤ 1 blocker | Still 3: the academic contribution is at risk. Escalate — either secure real corpus access or re-scope the thesis around Phase G's own real data, which is reachable. |
 | **G7** | Free tier survives demand | Sustained daily query volume vs the 62–250/day ceiling in §10 | Under ceiling | Exceeded: decide explicitly — pay for Tier 1, or cap and queue with an honest on-screen message. Do not let it fail silently. |
 | **G8** | Scope stays solo-sized | Phases complete vs the §11 cut list | G+H+I done before J starts | Behind: execute the cut list as written. It exists to be used, not admired. |
+
+### G1 status: NOT_EVALUATED
+
+`marsa-reg probe` exists and runs. From this environment it reports
+`NOT_EVALUATED` with 0/4 sources reachable — **not a pass and not a failure.**
+The gate deliberately refuses to return a verdict it has no evidence for, on
+the same principle as RESULTS.md's publication gate.
+
+Run it anywhere with normal outbound access:
+
+```bash
+marsa-reg probe          # exits 0 only on PASS
+marsa-reg probe --json   # machine-readable
+```
+
+Until it returns PASS or MARGINAL, **Phase G is not started.** Building it
+first would make the gate ceremonial, which is the failure mode gates exist to
+prevent.
 
 ### The three that actually matter
 
@@ -475,13 +493,35 @@ Two things I will do without asking if the gates say so:
 | Screening false-negative | High | Three-valued output; never "clear" |
 | Free-tier quota exhaustion mid-demo | Medium | Deterministic fallbacks, visible degradation banner |
 | Scope creep across four wedges | Medium | The cut list above, agreed in advance |
-| Synthetic corpora still blocking RESULTS.md | Medium | Phase G's sources are *all* public and reachable — G is the first phase whose data is real |
+| Synthetic corpora still blocking RESULTS.md | Medium | Phase G's sources are public and unauthenticated — real data **anywhere with normal egress**, but see the correction below |
 
-**Phase G quietly fixes the biggest open problem in the project.** Federal
-Register, DHS, EU Commission and USITC are public and unauthenticated. The
-CROSS/Comtrade/Kaggle blockage that keeps RESULTS.md stamped PROVISIONAL does
-not apply to any of them. G is the first phase that can be evaluated on real
-data.
+### Correction — an earlier claim in this document was wrong
+
+The first version of this roadmap said Phase G's sources were "all public and
+reachable" and that the blockage keeping RESULTS.md at PROVISIONAL "does not
+apply to any of them." **That was asserted without being tested, and testing it
+proved it false.**
+
+`marsa-reg probe` was then written and run. All four sources return **403 from
+the egress proxy** — via `curl` and via every other route available here:
+
+```
+Federal Register       UNREACHABLE   403 Forbidden
+USITC HTS              UNREACHABLE   403 Forbidden
+DHS UFLPA Entity List  UNREACHABLE   403 Forbidden
+EU CBAM Annex I        UNREACHABLE   403 Forbidden
+
+G1: NOT_EVALUATED — 0/4 sources reachable
+```
+
+What is still true: the sources are public, unauthenticated, and free. What is
+not true is that this build environment can reach them. Phase G's data is real
+**anywhere with normal outbound access** — and nowhere in this sandbox, exactly
+like Phases A–F before it.
+
+The practical consequence is that Phase G does not, on its own, get RESULTS.md
+out of PROVISIONAL from here. It gets there from a laptop. That is a smaller
+claim than the one originally made, and it is the accurate one.
 
 ---
 
