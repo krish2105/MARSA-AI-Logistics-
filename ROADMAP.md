@@ -163,6 +163,11 @@ rather than guess where coverage is absent.
 
 ## 4. Phase H — the Duty Stack Engine, and a fourth route
 
+> **Shipped.** G3 passes (exact arithmetic, enforced in CI); G4 holds by
+> construction — a deterministic pre-filter routes duty questions before the
+> classifier is consulted, and the classifier's answer is recorded alongside so
+> the override can be scored rather than hidden.
+
 ### The engine
 
 Deterministic. No LLM in the arithmetic path, ever.

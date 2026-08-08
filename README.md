@@ -35,6 +35,7 @@ complexity is better.
 | **Fast** | `simple_factual` | Hybrid RAG — dense (MiniLM) + BM25 → cross-encoder rerank | CBP CROSS rulings |
 | **Agentic** | `multi_hop_reasoning` | LangGraph loop — plan → retrieve → critic → retry (max 2×) | UN Comtrade + DataCo |
 | **Graph** | `relationship_network` | GraphRAG — entity resolution → k-hop traversal → synthesis | NetworkX graph + World Bank LPI 2.0 |
+| **Compute** | `duty_calculation` | Deterministic layered arithmetic — **no LLM in the answer path** | Phase G instruments |
 
 The **Route Badge** in the UI is the governance surface: it shows which path
 was chosen, why, with what confidence, and at what cost and latency. That
@@ -55,7 +56,8 @@ decision is auditable in the interface, not buried in a log.
 | **F** | Evaluation harness → `RESULTS.md` | ✅ **Shipped** (results PROVISIONAL) |
 | **Deploy** | Compose stack, production images, Vercel + Render + Neon | ✅ **Shipped** — see [DEPLOY.md](DEPLOY.md) |
 | **G** | Regulatory Knowledge Layer — point-in-time instruments | ✅ **Shipped** (G1 NOT_EVALUATED — sources unreachable) |
-| **H–K** | Duty stacking, screening, classification, scenario graph | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
+| **H** | Duty stack engine + fourth `compute` route (no LLM) | ✅ **Shipped** — G3 exact, G4 by construction |
+| **I–K** | Screening, classification, scenario graph | 📋 **Planned** — see [ROADMAP.md](ROADMAP.md) |
 
 **`RESULTS.md` is stamped PROVISIONAL, and that is a deliberate outcome rather
 than unfinished work.** The harness measures what it can measure and *refuses
@@ -767,7 +769,7 @@ backend/src/marsa/
     quality.py              #     RAGAS, split by what needs a judge
     benchmark.py            #     every query down every path, cold/warm split
     report.py               #     RESULTS.md + the publication gate
-backend/tests/              # 390 tests
+backend/tests/              # 425 tests
 ```
 
 ---

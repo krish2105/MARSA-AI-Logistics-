@@ -26,6 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from marsa.duty.path import run_compute_path
 from marsa.eval.dataset import LABELLED_QUERIES, LabelledQuery
 from marsa.logging import get_logger
 from marsa.router.paths import run_agentic_path, run_fast_path, run_graph_path
@@ -36,6 +37,9 @@ PATH_RUNNERS: dict[str, Callable[[str], dict[str, Any]]] = {
     "fast": run_fast_path,
     "agentic": run_agentic_path,
     "graph": run_graph_path,
+    # Phase H. Included so the comparison covers the path with no LLM in it at
+    # all — the interesting row, since it should be both cheapest and exact.
+    "compute": run_compute_path,
 }
 
 
@@ -129,11 +133,31 @@ class BenchmarkReport:
         # The spec asks for it to be reported when the ordering defies the
         # naming. Stating *that* is a measurement; explaining *why* is not, so
         # the explanation is confined to what this run can actually support.
+        # The compute path only answers duty questions, and this query set is
+        # mostly not duty questions — so its median is dominated by the cost of
+        # *declining*, not of computing. Reporting 0.2ms as "the fastest path"
+        # without that caveat would be a straightforwardly misleading headline.
+        compute = next((r for r in rows if r["path"] == "compute"), None)
+        if compute and compute["meanSources"] < 0.5:
+            out.append(
+                f"`compute` shows {compute['medianLatencyMs']:.1f}ms, but this set "
+                "is mostly not duty questions, so that figure is dominated by how "
+                "fast it declines rather than how fast it computes. Its near-zero "
+                "source count is the tell. A fair reading needs a duty-question "
+                "subset; treat this row as a floor, not a comparison."
+            )
+
         if rows[0]["path"] != "fast":
             note = (
                 f"The path named `fast` is NOT the fastest here — `{rows[0]['path']}` is."
             )
-            if no_llm and rows[0]["path"] == "agentic":
+            if rows[0]["path"] == "compute":
+                note += (
+                    " That is expected by design — the compute path makes no model "
+                    "call at all — but see the caveat above before reading it as a "
+                    "win."
+                )
+            elif no_llm and rows[0]["path"] == "agentic":
                 note += (
                     " That ordering is an artefact, not a finding: with no LLM "
                     "configured the agentic path never makes a model call, so it "

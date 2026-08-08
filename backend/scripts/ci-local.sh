@@ -62,6 +62,7 @@ expected = {
     "What HTS code applies to lithium-ion power banks?": "fast",
     "Which of our shipments are exposed if the tariff on HS 8541 takes effect?": "agentic",
     "Which suppliers are exposed if Jebel Ali congestion worsens?": "graph",
+    "What duty applies to HTS 7326.90.86 from China?": "compute",
 }
 for query, want in expected.items():
     audit = router.run(query)
@@ -69,6 +70,32 @@ for query, want in expected.items():
     print(f"OK {audit.path:8s} {audit.latency_ms:7.1f}ms  {query[:50]}")
 EOF
 python -c "from marsa.api.main import app; print('API imports OK:', app.title)"
+
+step "Phase H — duty routing and exact arithmetic"
+marsa-reg fixtures
+marsa-duty quote --hts 7326.90.86 --origin CN --value 40000 --on 2026-09-01
+python - <<'EOF'
+from datetime import date
+from decimal import Decimal
+
+from marsa.duty.engine import quote
+from marsa.regulatory import fixtures as fx
+from marsa.regulatory.store import InstrumentStore
+
+store = InstrumentStore()
+store.extend(fx.generate_instruments())
+
+china = quote(store, hts="7326.90.86", origin="CN", customs_value=40_000,
+              on=date(2026, 9, 1))
+assert china.total_percent == Decimal("77.9"), china.total_percent
+japan = quote(store, hts="7326.90.86", origin="JP", customs_value=100_000,
+              on=date(2026, 9, 1))
+assert japan.total_percent == Decimal("15"), japan.total_percent
+missing = quote(store, hts="9999.99.99", origin="CN", customs_value=1_000,
+                on=date(2026, 9, 1))
+assert not missing.answered and missing.total_amount is None
+print("OK G3: exact arithmetic, cap on the total, refusal not zero")
+EOF
 
 step "Validate the labelled routing set"
 marsa-eval dataset

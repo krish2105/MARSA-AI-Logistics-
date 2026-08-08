@@ -100,6 +100,7 @@ def generate_instruments(*, with_contradiction: bool = False) -> list[Instrument
                 rate_percent=50.0,
                 additive=True,
                 cap_percent=15.0,
+                cap_origins=CAPPED_ORIGINS,
                 note=f"{NOTE} Capped at 15% total duty for {', '.join(CAPPED_ORIGINS[:4])} et al.",
             ),
             date(2026, 6, 8),

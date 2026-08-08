@@ -112,6 +112,11 @@ class RouterState(TypedDict, total=False):
     sources: list[Source]
     answer: str
     audit: AuditRecord
+    #: Compute path only. `duty_prefilter` records that the deterministic
+    #: detector forced the route; `classifier_path` keeps what the classifier
+    #: would have chosen, so the override can be scored rather than hidden.
+    duty_prefilter: bool
+    classifier_path: str
     #: Agentic path only.
     subqueries: list[str]
     evidence: list[dict[str, Any]]

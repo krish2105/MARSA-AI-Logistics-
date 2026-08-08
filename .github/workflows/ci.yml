@@ -117,6 +117,7 @@ jobs:
               "What HTS code applies to lithium-ion power banks?": "fast",
               "Which of our shipments are exposed if the tariff on HS 8541 takes effect?": "agentic",
               "Which suppliers are exposed if Jebel Ali congestion worsens?": "graph",
+              "What duty applies to HTS 7326.90.86 from China?": "compute",
           }
           for query, want in expected.items():
               audit = router.run(query)
@@ -125,10 +126,48 @@ jobs:
           EOF
           python -c "from marsa.api.main import app; print('API imports OK:', app.title)"
 
+      # Gate G4: a duty question reaching an LLM produces confident, plausible,
+      # wrong arithmetic. The pre-filter must guarantee it cannot, and the other
+      # three paths must not be stolen from — a bug caught exactly this way when
+      # the detector captured the multi-hop query below.
+      - name: Phase H — duty routing and exact arithmetic
+        env:
+          DATABASE_URL: ${{ env.MARSA_TEST_DSN }}
+        run: |
+          marsa-reg fixtures
+          marsa-duty detect "What duty applies to 7326.90.86 from China?"
+          marsa-duty quote --hts 7326.90.86 --origin CN --value 40000 --on 2026-09-01
+          python - <<'EOF'
+          from datetime import date
+          from decimal import Decimal
+          from marsa.duty.engine import quote
+          from marsa.regulatory import fixtures as fx
+          from marsa.regulatory.store import InstrumentStore
+
+          store = InstrumentStore()
+          store.extend(fx.generate_instruments())
+
+          # G3: exact, or it does not ship. Not "close".
+          china = quote(store, hts="7326.90.86", origin="CN",
+                        customs_value=40_000, on=date(2026, 9, 1))
+          assert china.total_percent == Decimal("77.9"), china.total_percent
+          assert china.total_amount == Decimal("31160.00"), china.total_amount
+
+          # The total-duty cap is a ceiling on the sum, not on one layer.
+          japan = quote(store, hts="7326.90.86", origin="JP",
+                        customs_value=100_000, on=date(2026, 9, 1))
+          assert japan.total_percent == Decimal("15"), japan.total_percent
+
+          # A gap refuses rather than returning a number that understates duty.
+          missing = quote(store, hts="9999.99.99", origin="CN",
+                          customs_value=1_000, on=date(2026, 9, 1))
+          assert not missing.answered and missing.total_amount is None
+          print("OK G3: exact arithmetic, cap on the total, refusal not zero")
+          EOF
+
       # The labelled set is hand-written, so it is the part most likely to
       # silently drift out of balance or pick up a duplicate — either of which
-      # would quietly corrupt the accuracy figure. This fails the build first,
-      # before anything measures anything.
+      # would quietly corrupt the accuracy figure.
       - name: Validate the labelled routing set
         run: marsa-eval dataset
 

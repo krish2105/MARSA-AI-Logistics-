@@ -24,6 +24,8 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from marsa.duty.detect import detect as detect_duty
+from marsa.duty.path import run_compute_path
 from marsa.logging import get_logger
 from marsa.router.classifier import Classification, QueryClass, build_classifier
 from marsa.router.paths import run_agentic_path, run_fast_path, run_graph_path
@@ -49,14 +51,41 @@ def _classify_node(classifier) -> Callable[[RouterState], dict[str, Any]]:
             },
         )
         classification.usage.latency_ms = classification.usage.latency_ms or elapsed
+
+        # Gate G4: a duty question reaching an LLM produces confident, plausible,
+        # wrong arithmetic — the highest-severity failure in this system. So the
+        # decision is made deterministically and the classifier cannot override
+        # it. The classifier is still *asked*, and its answer recorded, so the
+        # routing thesis keeps a ground truth to be measured against: safety by
+        # construction, measurement alongside.
+        duty = detect_duty(state["query"])
+        override = None
+        if duty.is_duty_question:
+            override = "compute"
+            log.info(
+                "compute route forced by pre-filter",
+                extra={
+                    "classifier_said": classification.path,
+                    "agreed": classification.path == "compute",
+                    "reasons": duty.reasons,
+                },
+            )
+
         return {
             "classification": classification,
-            "path": classification.path,
+            "path": override or classification.path,
+            "duty_prefilter": duty.is_duty_question,
+            "classifier_path": classification.path,
             "steps": [
                 RetrievalStep(
                     "Classify",
-                    f"{classification.query_class.value} "
-                    f"({classification.confidence:.0%} confidence)",
+                    (
+                        f"duty question — routed to compute deterministically; "
+                        f"classifier said {classification.query_class.value}"
+                        if duty.is_duty_question
+                        else f"{classification.query_class.value} "
+                        f"({classification.confidence:.0%} confidence)"
+                    ),
                     elapsed,
                 )
             ],
@@ -113,6 +142,8 @@ def _finalise_node(state: RouterState) -> dict[str, Any]:
 
 
 def _route(state: RouterState) -> str:
+    if state.get("duty_prefilter"):
+        return "compute_path"
     return {
         QueryClass.SIMPLE_FACTUAL: "fast_path",
         QueryClass.MULTI_HOP: "agentic_path",
@@ -129,15 +160,21 @@ def build_router(classifier_backend: str = "auto"):
     builder.add_node("fast_path", _path_node(run_fast_path))
     builder.add_node("agentic_path", _path_node(run_agentic_path))
     builder.add_node("graph_path", _path_node(run_graph_path))
+    builder.add_node("compute_path", _path_node(run_compute_path))
     builder.add_node("finalise", _finalise_node)
 
     builder.set_entry_point("classify")
     builder.add_conditional_edges(
         "classify",
         _route,
-        {"fast_path": "fast_path", "agentic_path": "agentic_path", "graph_path": "graph_path"},
+        {
+            "fast_path": "fast_path",
+            "agentic_path": "agentic_path",
+            "graph_path": "graph_path",
+            "compute_path": "compute_path",
+        },
     )
-    for path in ("fast_path", "agentic_path", "graph_path"):
+    for path in ("fast_path", "agentic_path", "graph_path", "compute_path"):
         builder.add_edge(path, "finalise")
     builder.add_edge("finalise", END)
 

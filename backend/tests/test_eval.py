@@ -221,10 +221,22 @@ class TestBenchmark:
         return run_benchmark(limit=4)
 
     def test_runs_every_query_down_every_path(self, report):
-        """Routing each query only to its own path is not a comparison."""
-        assert set(report.stats) == {"fast", "agentic", "graph"}
+        """Routing each query only to its own path is not a comparison.
+
+        `compute` joined in Phase H. It answers only duty questions and this set
+        is mostly not duty questions, so its row is dominated by how fast it
+        declines — `findings()` says so rather than letting 0.2ms read as a win.
+        """
+        assert set(report.stats) == {"fast", "agentic", "graph", "compute"}
         for stats in report.stats.values():
             assert stats.runs
+
+    def test_the_compute_row_is_labelled_as_a_floor_not_a_comparison(self, report):
+        findings = " ".join(report.findings())
+        assert "declines" in findings, (
+            "the compute path's latency must be qualified; unqualified it reads "
+            "as the fastest path when it is mostly refusing"
+        )
 
     def test_cold_start_is_separated_from_warm(self, report):
         for stats in report.stats.values():
@@ -241,10 +253,28 @@ class TestBenchmark:
         assert "not measured by this run" in findings
 
     def test_findings_do_not_assert_unsupported_causes(self, report):
-        """An explanation the run cannot support is worse than none."""
+        """An explanation the run cannot support is worse than none.
+
+        Three qualifications are permitted, and only three: the ordering is a
+        measurement artefact, the cause is not established, or it follows from
+        the code by construction. That last one arrived with Phase H — "the
+        compute path makes no model call at all" is a property of the source,
+        not an inference from these numbers, so it is supported in a way a
+        guess about vector-store round trips was not.
+        """
         findings = " ".join(report.findings())
         if "NOT the fastest" in findings:
-            assert "artefact" in findings or "not established" in findings
+            assert (
+                "artefact" in findings
+                or "not established" in findings
+                or "by design" in findings
+            ), findings
+
+    def test_a_by_design_explanation_still_carries_its_caveat(self, report):
+        """'By design' must not become a way to wave away a misleading number."""
+        findings = " ".join(report.findings())
+        if "by design" in findings:
+            assert "caveat" in findings or "declines" in findings, findings
 
     def test_empty_stats_do_not_crash(self):
         assert BenchmarkReport().findings() == []

@@ -168,7 +168,28 @@ class Effect(BaseModel):
     additive: bool = True
     #: Total-duty ceiling, e.g. the 15% cap for EU/UK/JP/KR origins.
     cap_percent: float | None = None
+    #: Origins the cap applies to. Empty means it applies to every origin the
+    #: instrument covers.
+    #:
+    #: Load-bearing, and not obviously so: the June 2026 proclamation imposes a
+    #: 50% rate on everyone and caps *some* origins at 15% total. Modelling the
+    #: cap without its own origin list applies it to all of them, which turns a
+    #: 77.9% China stack into 15% — understating duty by a factor of five, and
+    #: understated duty is the expensive direction to be wrong in.
+    cap_origins: list[str] = Field(default_factory=list)
     note: str = ""
+
+    @field_validator("cap_origins", mode="after")
+    @classmethod
+    def _normalise_cap_origins(cls, origins: list[str]) -> list[str]:
+        return [o.strip().upper() for o in origins if o.strip()]
+
+    def cap_applies_to(self, origin: str | None) -> bool:
+        if self.cap_percent is None:
+            return False
+        if not self.cap_origins:
+            return True
+        return bool(origin) and origin.strip().upper() in self.cap_origins
 
     @model_validator(mode="after")
     def _rate_required_for_ad_valorem(self) -> Effect:
