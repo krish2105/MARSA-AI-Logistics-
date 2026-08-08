@@ -219,10 +219,27 @@ ghcr.io/krish2105/marsa-backend:<branch>
 ghcr.io/krish2105/marsa-frontend:<branch>
 ```
 
-No secrets to configure — it uses the built-in `GITHUB_TOKEN`. Because
-`NEXT_PUBLIC_API_BASE_URL` is baked in at build time, set the repository
-variable of that name (Settings → Secrets and variables → Actions → Variables)
-or the published frontend image will only work against a local gateway.
+No secrets to configure — it uses the built-in `GITHUB_TOKEN`.
+
+**The frontend leg fails until you set `NEXT_PUBLIC_API_BASE_URL`** as a
+repository variable (Settings → Secrets and variables → Actions → Variables).
+That is deliberate. The value is compiled into the client bundle, so an image
+built without it is permanently pointed at `localhost` and runs in fixture mode
+wherever it is deployed — showing "unreachable — replaying local fixtures" with
+nothing to suggest the image is at fault. A build that stops is much cheaper to
+diagnose than an image that lies, so the workflow refuses to publish one.
+
+The backend leg is unaffected and still publishes; only the frontend is gated.
+
+The same check rejects two values that look right and fail invisibly:
+
+| Value | Why it is refused |
+|---|---|
+| `https://gw.onrender.com/` | The trailing slash makes requests `//health`, which most servers treat as a different path. It 404s, the console decides the gateway is down. |
+| `http://gw.onrender.com` | Vercel serves the page over https, so the browser blocks an http gateway as mixed content *before* sending anything — indistinguishable from the gateway being offline. |
+
+So set it once, after step 2, to your exact Render origin with no trailing
+slash: `https://<your-service>.onrender.com`.
 
 ---
 

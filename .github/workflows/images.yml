@@ -47,6 +47,51 @@ jobs:
           # build the wrong commit entirely.
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      # Runs before anything is built or pushed, so a misconfigured frontend
+      # fails in seconds rather than after a full image build.
+      #
+      # `NEXT_PUBLIC_*` is inlined into the client bundle by `next build`, so
+      # the published frontend image is permanently bound to whatever gateway
+      # URL is set here. Defaulting to localhost publishes an image that runs
+      # in fixture mode wherever it is deployed, shows "unreachable — replaying
+      # local fixtures", and gives no clue that the image itself is the reason.
+      # A build that stops is far cheaper to diagnose than an image that lies.
+      - name: Require a gateway URL for the frontend image
+        if: matrix.name == 'frontend'
+        env:
+          GATEWAY_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+        run: |
+          if [ -z "$GATEWAY_URL" ]; then
+            echo "::error title=No gateway URL::NEXT_PUBLIC_API_BASE_URL is not set."
+            echo "The frontend image would be built against localhost and run in"
+            echo "fixture mode everywhere. Set the repository variable:"
+            echo "  Settings → Secrets and variables → Actions → Variables"
+            echo "  NEXT_PUBLIC_API_BASE_URL = https://<your-gateway>.onrender.com"
+            echo "Deploy the gateway first — see DEPLOY.md."
+            exit 1
+          fi
+
+          # A trailing slash turns `\${API_BASE}/health` into `//health`, which
+          # most servers treat as a different path. The probe 404s, the console
+          # decides the gateway is down, and the URL looks correct by eye.
+          case "$GATEWAY_URL" in
+            */) echo "::error title=Trailing slash::'$GATEWAY_URL' ends with '/'. Requests would be built as '//health' and 404. Remove it."
+                exit 1 ;;
+          esac
+
+          # Vercel serves the page over https, so an http gateway is blocked as
+          # mixed content by the browser before the request is sent — the same
+          # invisible failure as a CORS rejection. localhost is exempt: browsers
+          # treat it as a secure context.
+          case "$GATEWAY_URL" in
+            https://*) ;;
+            http://localhost*|http://127.0.0.1*) ;;
+            *) echo "::error title=Insecure gateway::'$GATEWAY_URL' is not https. The browser blocks it as mixed content from an https page, before any request is sent."
+               exit 1 ;;
+          esac
+
+          echo "Building the frontend image against $GATEWAY_URL"
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -78,9 +123,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
-          # NEXT_PUBLIC_* is inlined at build time, so the published frontend
-          # image points at whatever gateway URL is set here. The repository
-          # variable lets it be changed without editing this file; the default
-          # produces an image that only works against a local gateway.
+          # No fallback on purpose — the guard step above has already refused
+          # to get here without a real gateway URL. The backend image ignores
+          # this build-arg entirely.
           build-args: |
-            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000' }}
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
