@@ -52,6 +52,7 @@ marsa-eval = "marsa.eval.cli:app"
 marsa-reg = "marsa.regulatory.cli:app"
 marsa-duty = "marsa.duty.cli:app"
 marsa-screen = "marsa.screening.cli:app"
+marsa-classify = "marsa.classify.cli:app"
 
 [build-system]
 requires = ["setuptools>=68"]

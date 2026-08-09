@@ -162,3 +162,70 @@ export async function* streamQuery(
     reader.releaseLock();
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase J — grounded classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Citation {
+  rulingNumber: string;
+  assignedCodes: string[];
+  quote: string;
+  url: string;
+}
+
+export interface Evidence {
+  provisionAgreement: number;
+  armAgreement: number;
+  lexicalAnchoring: number;
+  codePresence: number | null;
+  retrieved: number;
+  modalSubheading: string;
+  missingRuling: string;
+  notes: string[];
+}
+
+/**
+ * Either a cited classification or a refusal.
+ *
+ * `outcome` is the discriminator, and the two states are genuinely different
+ * shapes: `citations` is populated only when the system classified, `nearest`
+ * and `reasons` only when it declined. The server cannot produce a classified
+ * outcome with an empty `citations` — `Suggestion` will not construct without
+ * one — so the client does not need to defend against that case.
+ */
+export interface ClassifyResult {
+  outcome: "classified" | "insufficient_evidence";
+  confidence: number;
+  subheading: string;
+  rationale: string;
+  message: string;
+  citations: Citation[];
+  nearest: Citation[];
+  reasons: string[];
+  evidence: Evidence | null;
+}
+
+export async function classify(
+  query: string,
+  signal?: AbortSignal,
+): Promise<ClassifyResult> {
+  const response = await fetch(`${API_BASE}/classify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+    signal,
+  });
+
+  if (!response.ok) {
+    // 503 is the index being absent, which is a different problem from a bad
+    // query and deserves to reach the user as such rather than as "failed".
+    const detail = await response
+      .json()
+      .then((body: { detail?: string }) => body.detail)
+      .catch(() => undefined);
+    throw new Error(detail ?? `Gateway returned ${response.status}`);
+  }
+
+  return (await response.json()) as ClassifyResult;
+}

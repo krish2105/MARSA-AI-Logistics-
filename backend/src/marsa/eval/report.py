@@ -42,10 +42,18 @@ class Gate:
     classifier_is_llm: bool = False
     corpora_are_real: bool = False
     judge_available: bool = False
+    #: Phase J hard gate: no confident answer on a query the corpus cannot
+    #: support. None when the abstention harness did not run.
+    abstention_gate: bool | None = None
     blockers: list[str] = field(default_factory=list)
 
     @property
     def may_publish(self) -> bool:
+        # The abstention gate blocks publication when it ran and failed. A run
+        # that never measured it is not thereby entitled to publish, but nor is
+        # it failing — it is silent, and the blockers list says so.
+        if self.abstention_gate is False:
+            return False
         return self.classifier_is_llm and self.corpora_are_real
 
     @property
@@ -59,17 +67,23 @@ class Gate:
             "classifierIsLlm": self.classifier_is_llm,
             "corporaAreReal": self.corpora_are_real,
             "judgeAvailable": self.judge_available,
+            "abstentionGate": self.abstention_gate,
             "blockers": self.blockers,
         }
 
 
 def evaluate_gate(
-    routing: RoutingReport, quality: QualityReport, *, corpora_origin: str
+    routing: RoutingReport,
+    quality: QualityReport,
+    *,
+    corpora_origin: str,
+    abstention: Any | None = None,
 ) -> Gate:
     gate = Gate(
         classifier_is_llm=routing.classifier_is_llm,
         corpora_are_real=corpora_origin == "live",
         judge_available=quality.judge_available,
+        abstention_gate=None if abstention is None else abstention.gate_passes,
     )
 
     if not gate.classifier_is_llm:
@@ -92,6 +106,13 @@ def evaluate_gate(
             "are reported as `not_measured` rather than zero. Context precision and "
             "recall are deterministic and are measured."
         )
+    if gate.abstention_gate is False:
+        gate.blockers.append(
+            "**The abstention gate failed.** At the shipped threshold the system "
+            "answers at least one query the corpus cannot support. A confident "
+            "answer with nothing behind it is the failure mode Phase J exists to "
+            "remove, so this blocks publication on its own."
+        )
 
     return gate
 
@@ -102,6 +123,7 @@ class EvaluationResults:
     quality: QualityReport
     benchmark: BenchmarkReport
     gate: Gate
+    abstention: Any | None = None
     corpora_origin: str = "unknown"
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -113,6 +135,7 @@ class EvaluationResults:
             "routing": self.routing.as_dict(),
             "quality": self.quality.as_dict(),
             "benchmark": self.benchmark.as_dict(),
+            "abstention": None if self.abstention is None else self.abstention.as_dict(),
             "corporaOrigin": self.corpora_origin,
         }
 
@@ -249,22 +272,159 @@ def _quality_section(quality: QualityReport, gate: Gate) -> str:
             "",
         ]
 
+    cov = d.get("labelCoverage") or {}
+    if cov:
+        lines += [
+            f"Relevance is scored on **{cov.get('scored', 0)} of "
+            f"{cov.get('total', 0)}** fast-path queries. A ruling counts as "
+            "relevant when **CBP** assigned it a code under the provision the "
+            "question asks about — the labels are read off the source "
+            "authority, not off what the retriever returned. "
+            f"{cov.get('unanswerable', 0)} queries have no answering document "
+            "in the corpus and are reported separately below; "
+            f"{cov.get('unlabelled', 0)} admit no defensible single provision "
+            "and are excluded rather than labelled generously.",
+            "",
+        ]
+
     if not d["byPath"]:
         lines.append("_No per-path quality scores were produced by this run._")
-        return "\n".join(lines)
+    else:
+        lines += [
+            "| Path | Context precision | Context recall | Recall ceiling | "
+            "Faithfulness | Answer relevance | n |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for path, m in d["byPath"].items():
+            lines.append(
+                f"| `{path}` | {m['contextPrecision']:.3f} | {m['contextRecall']:.3f} | "
+                f"{m.get('recallCeiling', 0):.3f} | {m['faithfulness']} | "
+                f"{m['answerRelevance']} | {m['n']} |"
+            )
+        fast = d["byPath"].get("fast")
+        if fast:
+            lines += [
+                "",
+                f"**Read recall against the ceiling, not against 1.0.** The path "
+                f"returns {fast.get('meanRetrieved', 0):.1f} sources against a mean "
+                f"of {fast.get('meanRelevant', 0):.1f} relevant rulings, so the best "
+                f"recall attainable at this *k* is "
+                f"{fast.get('recallCeiling', 0):.3f}. Measured recall is "
+                f"{fast['contextRecall']:.3f} — that is the number to judge, and it "
+                "reflects a deliberate choice to show five citations a user can "
+                "actually read rather than to maximise a recall figure.",
+            ]
 
-    lines += [
-        "| Path | Context precision | Context recall | Faithfulness | Answer relevance |",
-        "|---|---|---|---|---|",
-    ]
-    for path, m in d["byPath"].items():
-        lines.append(
-            f"| `{path}` | {m['contextPrecision']:.3f} | {m['contextRecall']:.3f} | "
-            f"{m['faithfulness']} | {m['answerRelevance']} |"
-        )
+    for path, note in (d.get("unmeasuredPaths") or {}).items():
+        lines += ["", f"**`{path}`** — {note}"]
+
+    unans = d.get("unanswerable") or {}
+    if unans.get("total"):
+        total, answered = unans["total"], unans["answeredAnyway"]
+        lines += [
+            "",
+            "### Questions the corpus cannot answer",
+            "",
+            f"{total} of the fast-path queries have no supporting document — two "
+            "name rulings that were never ingested, three ask about provisions no "
+            "ingested ruling classifies under. The correct behaviour is to say so.",
+            "",
+            f"**The fast path returned sources for {answered} of {total}.** It has "
+            "no way to decline: retrieval always returns its top *k*, and *k* "
+            "nearest neighbours exist in any non-empty index regardless of whether "
+            "any of them bear on the question. This is the gap Phase J's "
+            "abstention head is built to close, and these queries are its test set.",
+        ]
+
+    ports = d.get("portQueries") or 0
+    if ports:
+        lines += [
+            "",
+            "### The graph has no port layer",
+            "",
+            f"**{ports} of the 20 relationship queries name a port** — Jebel Ali, "
+            "Singapore, Shanghai, Rotterdam, Nhava Sheva, Los Angeles, Busan, "
+            "Tanger Med, Khalifa Port. The supply graph contains no port nodes at "
+            "all: 38 countries keyed by ISO3, HTS codes, rulings, products and "
+            "categories, and nothing else.",
+            "",
+            "The cause is upstream. Port performance comes from the Container Port "
+            "Performance Index, which the World Bank publishes as a report annex "
+            "rather than through an API, so `marsa-ingest worldbank` cannot fetch "
+            "it and the ports corpus was never written. Every port question "
+            "therefore resolves against countries or falls through to nothing.",
+            "",
+            "This is the single largest gap between what the graph path claims and "
+            "what it can currently do, and no amount of retrieval tuning closes "
+            "it — it needs the CPPI annex supplied as a local CSV via "
+            "`marsa-ingest worldbank --cppi-csv`. These queries are excluded from "
+            "the retrieval figures above rather than scored as failures, because "
+            "what they measure is a missing corpus, not a bad traversal.",
+        ]
 
     return "\n".join(lines)
 
+
+def _abstention_section(abstention: Any) -> str:
+    """Phase J — the trade-off, reported as a shape rather than a number."""
+    d = abstention.as_dict()
+    shipped = d["atShippedThreshold"]
+    ds = d["dataset"]
+
+    lines = [
+        "## Abstention (Phase J)",
+        "",
+        "The question is not how often the system is right. It is how much "
+        "accuracy a given willingness to decline buys, and whether it ever "
+        "answers something it has no business answering.",
+        "",
+        f"Measured over {ds['scored']} queries with a target provision and "
+        f"{ds['unanswerable']} the corpus cannot answer; {ds['excluded']} are "
+        "excluded for having no defensible target. Correctness is judged "
+        "against CBP's own code assignments, and on an unanswerable query the "
+        "only correct behaviour is to decline.",
+        "",
+        "| τ | Abstention rate | Accuracy on answered | Answered | Unsupported answered |",
+        "|---|---|---|---|---|",
+    ]
+    for point in d["curve"]:
+        mark = " ←" if point["threshold"] == d["shippedThreshold"] else ""
+        lines.append(
+            f"| {point['threshold']:.2f}{mark} | {point['abstentionRate']:.1%} | "
+            f"{point['accuracyOnAnswered']:.1%} | {point['answered']} | "
+            f"{point['unsupportedAnswered']}/{point['unsupportedTotal']} |"
+        )
+
+    verdict = "**PASS**" if d["gatePasses"] else "**FAIL**"
+    lines += [
+        "",
+        "### Gate — no confident answer on a query the corpus cannot support",
+        "",
+        f"{verdict} at the shipped threshold τ={d['shippedThreshold']:.2f}.",
+    ]
+    if shipped:
+        lines += [
+            "",
+            f"At that point the system declines {shipped['abstentionRate']:.1%} of "
+            f"the set and is right {shipped['accuracyOnAnswered']:.1%} of the time "
+            f"on what it does answer ({shipped['correct']} of "
+            f"{shipped['answered']}).",
+        ]
+
+    lines += [
+        "",
+        "Read the left end of the table as the system before Phase J: it answers "
+        "nearly everything, including every query with no answering document, and "
+        "accuracy on what it answers is correspondingly poor. The threshold buys "
+        "accuracy by declining, and the table is what that costs.",
+        "",
+        "Two honest caveats. The weights behind the confidence score are fixed "
+        "round numbers, not fitted — fitting them on these same queries would "
+        "report the fit rather than the behaviour. And thirteen scoreable queries "
+        "is a small set: the shape of this curve is the finding, and no single "
+        "cell in it should be quoted on its own.",
+    ]
+    return "\n".join(lines)
 
 def render_markdown(results: EvaluationResults) -> str:
     gate = results.gate
@@ -303,6 +463,12 @@ def render_markdown(results: EvaluationResults) -> str:
         "",
         _quality_section(results.quality, gate),
         "",
+    ]
+
+    if results.abstention is not None:
+        parts += [_abstention_section(results.abstention), ""]
+
+    parts += [
         "## Honest limitations",
         "",
         "- The complexity classifier is a single prompt (or, in this run, a rule "
@@ -314,6 +480,16 @@ def render_markdown(results: EvaluationResults) -> str:
         "Phase D model demonstrates the technique, not a general prediction.",
         "- The supply graph joins four corpora that share no keys. Every bridging "
         "assumption is marked `inferred` and listed on the `/data` page.",
+        "- The graph has no port layer. CPPI is a report annex rather than an API, "
+        "so it was never ingested, and the relationship queries that name a port "
+        "cannot be served at all. This is a missing corpus, not a weak traversal.",
+        "- Retrieval relevance is labelled in two steps: a hand judgement of which "
+        "tariff provision each question asks about, then a mechanical lookup of "
+        "which rulings CBP assigned to it. The first step is a reading of the "
+        "question and is recorded with a rationale per query in "
+        "`marsa/eval/relevance.py`; disagree with a line, not with the metric.",
+        "- Context recall is bounded by *k*. The ceiling is reported next to the "
+        "measured value so the two are not confused.",
         "",
     ]
 

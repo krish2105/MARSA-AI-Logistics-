@@ -695,6 +695,10 @@ marsa-eval routing         # routing accuracy, confusion, error direction
 marsa-eval benchmark       # every query down every path, timed
 marsa-eval run             # everything → RESULTS.md (gated)
 
+# Phase J — grounded classification with calibrated abstention
+marsa-classify query "What HTS code applies to lithium-ion power banks?"
+marsa-classify curve       # accuracy on answered vs abstention rate
+
 # Run the pgvector integration tests against a real database:
 #   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=marsa \
 #     -e POSTGRES_USER=marsa -e POSTGRES_DB=marsa pgvector/pgvector:pg16

@@ -18,6 +18,7 @@ import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -30,6 +31,8 @@ from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
 
 from marsa.api.schemas import (
+    ClassifyRequest,
+    ClassifyResponse,
     CostSummary,
     HealthResponse,
     QueryRequest,
@@ -194,6 +197,68 @@ def _ledger_from_dict(payload: dict[str, Any]) -> None:
     entry["latencyMsTotal"] += float(payload.get("latencyMs", 0))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase J — grounded classification with calibrated abstention
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def _classify_retriever():
+    """Built once, on first use.
+
+    Deliberately not built in `lifespan`: a gateway whose other endpoints work
+    should not fail to boot because the fast-path index is missing.
+    """
+    from marsa.indexing.cli import _build_retriever
+
+    return _build_retriever("auto", "auto")
+
+
+@app.post("/classify", response_model=ClassifyResponse)
+@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
+async def classify(request: Request, payload: ClassifyRequest) -> Any:
+    """Classify a commodity, or decline and say what is missing.
+
+    The response is never an uncited classification: `Suggestion` cannot be
+    constructed without a citation, so the only two shapes reaching the client
+    are a cited answer and a refusal carrying its near misses.
+    """
+    from marsa.classify.abstain import DEFAULT_THRESHOLD, decide
+    from marsa.classify.evidence import assess
+
+    threshold = payload.threshold if payload.threshold is not None else DEFAULT_THRESHOLD
+
+    try:
+        rulings, _ = _classify_retriever().retrieve(payload.query, limit=5)
+    except Exception as exc:  # noqa: BLE001
+        ERRORS.labels(kind=type(exc).__name__).inc()
+        log.exception("classification retrieval failed")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "The fast-path index is unavailable, so no "
+                "classification can be grounded.",
+                "error": type(exc).__name__,
+            },
+        )
+
+    signals = assess(payload.query, rulings)
+    outcome = decide(payload.query, rulings, threshold=threshold, signals=signals)
+
+    body = outcome.as_dict()
+    body["evidence"] = signals.as_dict()
+    log.info(
+        "classification decided",
+        extra={
+            "query": payload.query[:200],
+            "outcome": body["outcome"],
+            "confidence": body["confidence"],
+            "threshold": threshold,
+        },
+    )
+    return body
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> Any:
     """Readiness, and an honest account of what is actually loaded."""
@@ -257,5 +322,13 @@ async def root() -> dict[str, Any]:
     return {
         "name": "MARSA AI",
         "version": VERSION,
-        "endpoints": ["/query", "/query/stream", "/health", "/metrics", "/cost", "/docs"],
+        "endpoints": [
+            "/query",
+            "/query/stream",
+            "/classify",
+            "/health",
+            "/metrics",
+            "/cost",
+            "/docs",
+        ],
     }

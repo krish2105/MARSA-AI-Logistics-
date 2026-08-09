@@ -127,7 +127,12 @@ def reciprocal_rank_fusion(
 
     ordered = sorted(scores, key=lambda cid: -scores[cid])[:limit]
     return [
-        ScoredChunk(chunks[cid], scores[cid], "+".join(sorted(sources[cid])))
+        ScoredChunk(
+            chunks[cid],
+            scores[cid],
+            "+".join(sorted(sources[cid])),
+            arms=tuple(sorted(sources[cid])),
+        )
         for cid in ordered
     ]
 

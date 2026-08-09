@@ -383,3 +383,99 @@ class TestReportRendering:
 
         payload = json.loads(json_path.read_text())
         assert payload["gate"]["status"] == "PROVISIONAL"
+
+
+class TestRelevanceLabels:
+    """The retrieval ground truth must not be derivable from the retriever."""
+
+    def test_every_fast_query_has_a_label(self):
+        from marsa.eval.dataset import LABELLED_QUERIES
+        from marsa.eval.relevance import FAST_PATH_RELEVANCE
+
+        fast = {q.query for q in LABELLED_QUERIES if q.expected_path == "fast"}
+        assert fast == set(FAST_PATH_RELEVANCE), (
+            "a fast-path query without a relevance label is silently unscored"
+        )
+
+    def test_every_label_carries_a_rationale(self):
+        from marsa.eval.relevance import FAST_PATH_RELEVANCE
+
+        for query, label in FAST_PATH_RELEVANCE.items():
+            assert label.rationale.strip(), f"{query} has no recorded rationale"
+
+    def test_empty_targets_are_declared_either_unanswerable_or_unlabelled(self):
+        from marsa.eval.relevance import FAST_PATH_RELEVANCE
+
+        for query, label in FAST_PATH_RELEVANCE.items():
+            if label.target:
+                assert not label.unanswerable, f"{query} is both scored and unanswerable"
+            else:
+                # An empty target must be a deliberate state, and the rationale
+                # is what makes it reviewable rather than an oversight.
+                assert len(label.rationale) > 30, f"{query} needs a fuller reason"
+
+    def test_coverage_partitions_the_set(self):
+        from marsa.eval.relevance import FAST_PATH_RELEVANCE, coverage
+
+        c = coverage()
+        assert c["total"] == len(FAST_PATH_RELEVANCE)
+        assert c["scored"] + c["unanswerable"] + c["unlabelled"] == c["total"]
+
+    def test_relevance_comes_from_cbp_codes_not_from_retrieval(self):
+        from marsa.eval.relevance import RelevanceLabel, relevant_rulings
+
+        corpus = {
+            "N000001": ["8507.60.0020"],
+            "N000002": ["8504.40.9580"],
+            "N000003": ["6109.10.0040"],
+            "N000004": [],
+        }
+        label = RelevanceLabel(("8507.60",), "battery accumulators")
+        assert relevant_rulings(label, corpus) == {"N000001"}
+
+        both = RelevanceLabel(("8507.60", "8504.40"), "the power-bank fault line")
+        assert relevant_rulings(both, corpus) == {"N000001", "N000002"}
+
+    def test_prefix_granularity_is_honoured(self):
+        from marsa.eval.relevance import RelevanceLabel, relevant_rulings
+
+        # 6109 and 6110 are chapter 61 (knitted); 6203 is chapter 62 (woven).
+        corpus = {
+            "A": ["6109.10.0040"],
+            "B": ["6110.20.2079"],
+            "C": ["6203.43.4010"],
+            "D": ["8507.60.0020"],
+        }
+        chapter = RelevanceLabel(("61",), "chapter-level question")
+        assert relevant_rulings(chapter, corpus) == {"A", "B"}
+
+        subheading = RelevanceLabel(("6109.10",), "subheading-level question")
+        assert relevant_rulings(subheading, corpus) == {"A"}
+
+    def test_unanswerable_label_yields_no_relevant_documents(self):
+        from marsa.eval.relevance import RelevanceLabel, relevant_rulings
+
+        label = RelevanceLabel((), "not in the corpus", unanswerable=True)
+        assert relevant_rulings(label, {"A": ["8507.60.0020"]}) == set()
+
+    def test_port_detection_flags_the_queries_the_graph_cannot_serve(self):
+        from marsa.eval.relevance import names_a_port
+
+        assert names_a_port("Which suppliers are exposed if Jebel Ali congestion worsens?")
+        assert names_a_port("If Busan is disrupted, what is the knock-on effect?")
+        assert not names_a_port("Which trading partners are most connected to the UAE?")
+
+
+class TestRecallCeiling:
+    """Recall against a relevant set larger than k is bounded by k."""
+
+    def test_ceiling_is_k_over_relevant_when_relevant_exceeds_k(self):
+        scores = score_retrieval(["A", "B", "C", "D", "E"], {f"R{i}" for i in range(20)})
+        assert scores.recall_ceiling == pytest.approx(5 / 20)
+
+    def test_ceiling_is_one_when_everything_relevant_fits(self):
+        scores = score_retrieval(["A", "B", "C"], {"A", "B"})
+        assert scores.recall_ceiling == pytest.approx(1.0)
+
+    def test_ceiling_is_zero_without_a_relevance_set(self):
+        assert score_retrieval(["A"], set()).recall_ceiling == 0.0

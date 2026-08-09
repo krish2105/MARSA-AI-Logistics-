@@ -99,3 +99,54 @@ class CostSummary(BaseModel):
     totalCostUsd: float
     byPath: dict[str, dict[str, float]]
     note: str
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase J — grounded classification
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class ClassifyRequest(BaseModel):
+    query: str = Field(..., min_length=3, max_length=MAX_QUERY_CHARS)
+    #: Callers with a different tolerance for a wrong classification can move
+    #: the abstention threshold. A customs broker and a browsing user do not
+    #: want the same trade.
+    threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class CitationModel(BaseModel):
+    rulingNumber: str
+    assignedCodes: list[str]
+    quote: str = ""
+    url: str
+
+
+class EvidenceModel(BaseModel):
+    provisionAgreement: float
+    armAgreement: float
+    lexicalAnchoring: float
+    codePresence: float | None = None
+    retrieved: int
+    modalSubheading: str = ""
+    missingRuling: str = ""
+    notes: list[str] = Field(default_factory=list)
+
+
+class ClassifyResponse(BaseModel):
+    """Either a cited classification or a refusal — never an uncited answer.
+
+    `outcome` is the discriminator. `citations` is populated only when the
+    system classified; `nearest` only when it declined. Keeping both on one
+    model rather than a union keeps the client's parse trivial, and the
+    discriminator makes the two states impossible to confuse.
+    """
+
+    outcome: str
+    confidence: float
+    subheading: str = ""
+    rationale: str = ""
+    message: str = ""
+    citations: list[CitationModel] = Field(default_factory=list)
+    nearest: list[CitationModel] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    evidence: EvidenceModel | None = None

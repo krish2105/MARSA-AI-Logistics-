@@ -38,6 +38,11 @@ class ScoredChunk:
     score: float
     #: Which retriever produced this hit — surfaced in the audit log.
     retriever: str = "dense"
+    #: Which retrieval arms found this chunk, before fusion and reranking
+    #: collapsed them. `retriever` is overwritten at each stage, so provenance
+    #: needs somewhere of its own to survive to the far end of the pipeline —
+    #: Phase J reads it to tell "both arms agree" from "one arm ranked it".
+    arms: tuple[str, ...] = ()
 
 
 class VectorStore(ABC):

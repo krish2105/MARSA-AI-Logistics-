@@ -7,6 +7,7 @@ const NAV = [
   { href: "/data", label: "Data provenance" },
   { href: "/regulatory", label: "Instruments" },
   { href: "/screening", label: "Screening" },
+  { href: "/classify", label: "Classification" },
   { href: "/theme", label: "Design tokens" },
 ];
 

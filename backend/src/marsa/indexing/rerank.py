@@ -108,7 +108,7 @@ class LexicalReranker(Reranker):
 
     def rerank(self, query: str, candidates: Sequence[ScoredChunk], k: int) -> list[ScoredChunk]:
         rescored = [
-            ScoredChunk(c.chunk, self.score(query, c), f"rerank:{self.name}")
+            ScoredChunk(c.chunk, self.score(query, c), f"rerank:{self.name}", arms=c.arms)
             for c in candidates
         ]
         rescored.sort(key=lambda c: -c.score)
@@ -150,7 +150,7 @@ class CrossEncoderReranker(Reranker):
         pairs = [(query, c.chunk.text) for c in candidates]
         scores = self._model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
         rescored = [
-            ScoredChunk(c.chunk, float(s), "rerank:cross-encoder")
+            ScoredChunk(c.chunk, float(s), "rerank:cross-encoder", arms=c.arms)
             for c, s in zip(candidates, scores, strict=True)
         ]
         rescored.sort(key=lambda c: -c.score)

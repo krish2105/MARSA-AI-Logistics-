@@ -46,6 +46,19 @@ class RetrievalScores:
         p, r = self.context_precision, self.context_recall
         return 2 * p * r / (p + r) if (p + r) else 0.0
 
+    @property
+    def recall_ceiling(self) -> float:
+        """The best recall this query could have scored.
+
+        A path that returns five sources cannot recall twenty-six relevant
+        rulings. Reporting raw recall without this number invites the reader to
+        blame retrieval quality for a bound imposed by *k*, which is the more
+        common misreading of the two.
+        """
+        if not self.relevant:
+            return 0.0
+        return min(self.retrieved, self.relevant) / self.relevant
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "contextPrecision": round(self.context_precision, 4),
@@ -214,6 +227,18 @@ class QualityReport:
     per_path_judge: dict[str, list[JudgeScores]] = field(default_factory=dict)
     judge_available: bool = False
     judge_note: str = ""
+    #: Why a path has no retrieval score, keyed by path. A path with no
+    #: independent relevance ground truth is reported as unmeasured rather
+    #: than given a number derived from its own output.
+    per_path_note: dict[str, str] = field(default_factory=dict)
+    #: How much of the labelled set carries a scoreable relevance label.
+    label_coverage: dict[str, int] = field(default_factory=dict)
+    #: Queries the corpus cannot answer: did the path return sources anyway?
+    unanswerable_total: int = 0
+    unanswerable_with_sources: int = 0
+    #: Relationship queries that name a port. The graph has no port layer,
+    #: so these are structurally unanswerable rather than badly answered.
+    port_queries: int = 0
 
     def summary(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
@@ -225,6 +250,9 @@ class QualityReport:
                 "n": len(scores),
                 "contextPrecision": round(mean([s.context_precision for s in scores]), 4),
                 "contextRecall": round(mean([s.context_recall for s in scores]), 4),
+                "recallCeiling": round(mean([s.recall_ceiling for s in scores]), 4),
+                "meanRelevant": round(mean([s.relevant for s in scores]), 1),
+                "meanRetrieved": round(mean([s.retrieved for s in scores]), 1),
             }
 
             judged = [
@@ -247,4 +275,11 @@ class QualityReport:
             "byPath": self.summary(),
             "judgeAvailable": self.judge_available,
             "judgeNote": self.judge_note,
+            "unmeasuredPaths": dict(self.per_path_note),
+            "labelCoverage": dict(self.label_coverage),
+            "unanswerable": {
+                "total": self.unanswerable_total,
+                "answeredAnyway": self.unanswerable_with_sources,
+            },
+            "portQueries": self.port_queries,
         }

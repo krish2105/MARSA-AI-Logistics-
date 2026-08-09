@@ -155,24 +155,33 @@ def run(
             console.print(f"  {problem}")
         raise typer.Exit(code=1)
 
-    console.print("[dim]1/3 routing accuracy…[/]")
+    console.print("[dim]1/4 routing accuracy…[/]")
     routing_report = evaluate_routing(build_classifier(backend))
     _print_routing(routing_report)
 
-    console.print("\n[dim]2/3 per-path cost and latency…[/]")
+    console.print("\n[dim]2/4 per-path cost and latency…[/]")
     benchmark_report = run_benchmark(repeats=repeats, limit=limit)
 
-    console.print("[dim]3/3 answer quality…[/]")
+    console.print("[dim]3/4 answer quality…[/]")
     quality_report = _run_quality()
 
+    console.print("[dim]4/4 abstention curve…[/]")
+    abstention_report = _run_abstention()
+
     origin = _corpora_origin()
-    gate = evaluate_gate(routing_report, quality_report, corpora_origin=origin)
+    gate = evaluate_gate(
+        routing_report,
+        quality_report,
+        corpora_origin=origin,
+        abstention=abstention_report,
+    )
 
     results = EvaluationResults(
         routing=routing_report,
         quality=quality_report,
         benchmark=benchmark_report,
         gate=gate,
+        abstention=abstention_report,
         corpora_origin=origin,
     )
     markdown_path, json_path = write_results(results, repo_root=settings.data_dir.parent)
@@ -193,15 +202,75 @@ def run(
     console.print(f"[dim]  machine-readable → {json_path}[/]")
 
 
+def _cross_corpus_codes() -> dict[str, list[str]]:
+    """Ruling number -> the HTS codes CBP assigned to it."""
+    import json
+
+    path = settings.processed_dir / "cross_rulings.jsonl"
+    if not path.exists():
+        return {}
+    out: dict[str, list[str]] = {}
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            row = json.loads(line)
+            out[row["ruling_number"]] = list(row.get("hts_codes") or [])
+    return out
+
+
+def _graph_relevance(query: str) -> set[str]:
+    """Graph nodes the query names, read from the graph rather than the answer.
+
+    Deriving this from the traversal's own output would make recall vacuous —
+    a node that should have been reached but was not could never be counted
+    against it. Resolving names against the stored graph keeps both precision
+    and recall answerable.
+    """
+    try:
+        from marsa.graph.store import load_graph
+    except ImportError:
+        return set()
+    try:
+        graph = load_graph(settings.data_dir)
+    except Exception:  # noqa: BLE001 — no graph on disk is a normal state
+        return set()
+
+    from marsa.eval.relevance import COUNTRY_ALIASES
+
+    low = query.lower()
+    aliased = {f"country:{iso3}" for alias, iso3 in COUNTRY_ALIASES.items() if alias in low}
+
+    # The graph path cites node *labels*, so the ground truth is expressed in
+    # labels too rather than in the internal `kind:key` node ids.
+    wanted: set[str] = set()
+    for node, data in graph.nodes(data=True):
+        label = str(data.get("label") or "")
+        if not label:
+            continue
+        # Two characters or fewer matches almost anything, so a label only
+        # counts as "named" when it is long enough to be a real name.
+        spelled_out = len(label) > 2 and label.lower() in low
+        if str(node) in aliased or spelled_out:
+            wanted.add(label)
+
+    return wanted
+
+
 def _run_quality() -> QualityReport:
     """Score retrieval per path, and generation quality if a judge exists.
 
-    Relevance labels come from what the graph and index actually contain: a
-    query naming Jebel Ali should retrieve the Jebel Ali node. That is a weaker
-    ground truth than hand-annotated relevance judgements would be, and it is
-    the strongest available without a human annotating 60 × N documents.
+    Retrieval is scored only where relevance is established independently of
+    the retriever — from CBP's own code assignments for the fast path, and from
+    entity resolution against the stored graph for the graph path. The agentic
+    path has no such source, so it is reported unmeasured rather than given a
+    number derived from its own output. See `marsa.eval.relevance`.
     """
     from marsa.eval.benchmark import PATH_RUNNERS
+    from marsa.eval.relevance import (
+        FAST_PATH_RELEVANCE,
+        coverage,
+        names_a_port,
+        relevant_rulings,
+    )
 
     judge = RagasJudge()
     report = QualityReport(
@@ -211,7 +280,17 @@ def _run_quality() -> QualityReport:
             if judge.is_available
             else "No LLM judge configured — generation metrics are not measured, not zero."
         ),
+        label_coverage=coverage(),
     )
+    report.per_path_note["agentic"] = (
+        "Not measured. The agentic path composes its own source descriptors "
+        "(corridor and order keys) rather than citing documents with stable "
+        "identifiers, so there is no relevance ground truth independent of the "
+        "path itself. Reported as unmeasured rather than scored against its own "
+        "output."
+    )
+
+    corpus = _cross_corpus_codes()
 
     for item in LABELLED_QUERIES:
         runner = PATH_RUNNERS.get(item.expected_path)
@@ -223,9 +302,28 @@ def _run_quality() -> QualityReport:
             continue
 
         refs = [s.ref for s in result.get("sources", [])]
-        # Ground truth: any source whose ref appears in the query text, plus the
-        # expectation that a path returns *something* when it should.
-        relevant = {r for r in refs if r.lower() in item.query.lower()} or set(refs[:1])
+
+        if item.expected_path == "fast":
+            label = FAST_PATH_RELEVANCE.get(item.query)
+            if label is None:
+                continue
+            if label.unanswerable:
+                report.unanswerable_total += 1
+                if refs:
+                    report.unanswerable_with_sources += 1
+                continue
+            if not label.is_scored:
+                continue
+            relevant = relevant_rulings(label, corpus)
+        elif item.expected_path == "graph":
+            if names_a_port(item.query):
+                report.port_queries += 1
+                continue
+            relevant = _graph_relevance(item.query)
+            if not relevant:
+                continue
+        else:
+            continue
 
         report.per_path_retrieval.setdefault(item.expected_path, []).append(
             score_retrieval(refs, relevant)
@@ -241,3 +339,27 @@ def _run_quality() -> QualityReport:
 
 if __name__ == "__main__":
     app()
+
+
+def _run_abstention():
+    """Measure the Phase J abstention curve, or None if the index is absent.
+
+    A missing fast-path index is a normal state for a checkout that has not run
+    `marsa-index build`. It leaves the curve unmeasured rather than failing the
+    whole harness, and the gate reports `None` rather than a pass.
+    """
+    from marsa.classify.curve import measure
+
+    try:
+        from marsa.indexing.cli import _build_retriever
+
+        retriever = _build_retriever("auto", "auto")
+    except Exception:  # noqa: BLE001
+        log.warning("no fast-path index; abstention curve not measured")
+        return None
+
+    def retrieve(text: str):
+        rulings, _ = retriever.retrieve(text, limit=5)
+        return rulings
+
+    return measure(retrieve)
